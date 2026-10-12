@@ -3,12 +3,10 @@ import { BookShelfCover } from './BookShelfCover';
 
 export function MockupHeroSection({ 
   cases, 
-  onSelectCase, 
-  selectedLevel, 
-  onSelectLevel 
+  onSelectCase 
 }) {
   return (
-    <div className="relative bg-black text-white overflow-hidden pt-6 pb-12 sm:pt-8 sm:pb-16 border-b border-stone-850">
+    <div className="relative bg-black text-white overflow-hidden pt-6 pb-10 sm:pt-8 sm:pb-12 border-b border-stone-850">
       
       {/* Background Watermark: Giant Outlined Magnifying Glass */}
       <div className="absolute -bottom-10 -left-10 w-72 sm:w-96 h-72 sm:h-96 opacity-10 pointer-events-none">
@@ -18,7 +16,7 @@ export function MockupHeroSection({
         </svg>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-10 sm:space-y-12">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-8 sm:space-y-10">
         
         {/* ================= HERO BANNER ROW ================= */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-8 items-center">
@@ -79,7 +77,7 @@ export function MockupHeroSection({
                 الإلكترونية
               </h2>
               <p className="text-xs sm:text-sm font-bold text-crypta-yellow tracking-wide">
-                اكتشف المجرم قبل فوات الاوان
+                اكتشف المجرم قبل فوات الأوان
               </p>
             </div>
 
@@ -87,31 +85,32 @@ export function MockupHeroSection({
 
         </div>
 
-        {/* ================= 10 BOOKS SHELF (Mobile & iPad Swipeable / Desktop Grid) ================= */}
+        {/* ================= BOOKS SHELF CAROUSEL ================= */}
         <div className="pt-2">
           
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-crypta-pink shadow-pink-glow" />
+              <h3 className="text-sm sm:text-base font-bold text-white">أبرز ملفات التحقيق المميزة</h3>
+            </div>
+            <span className="text-[11px] text-stone-400 font-mono">انقر على أي ملف لمعاينة الأدلة</span>
+          </div>
+
           {/* Books Shelf Container */}
           <div className="flex lg:grid lg:grid-cols-10 gap-3 sm:gap-3.5 overflow-x-auto pb-4 pt-1 snap-x scrollbar-none px-1">
             {cases.slice(0, 10).map((c) => {
-              const isSelected = selectedLevel === c.levelNumber;
-
               return (
                 <div 
                   key={c.id}
                   onClick={() => {
-                    onSelectLevel(c.levelNumber);
                     if (!c.isLocked) {
                       onSelectCase(c);
                     }
                   }}
-                  className={`group cursor-pointer flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-1.5 min-w-[135px] sm:min-w-[155px] lg:min-w-0 flex-1 snap-start shrink-0 lg:shrink ${
-                    isSelected ? 'scale-105' : ''
-                  }`}
+                  className="group cursor-pointer flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-2 min-w-[135px] sm:min-w-[155px] lg:min-w-0 flex-1 snap-start shrink-0 lg:shrink"
                 >
                   {/* Book Cover */}
-                  <div className={`rounded-xl transition-all ${
-                    isSelected ? 'ring-2 ring-crypta-yellow shadow-yellow-glow' : ''
-                  }`}>
+                  <div className="rounded-xl transition-all group-hover:ring-2 group-hover:ring-crypta-yellow group-hover:shadow-yellow-glow">
                     <BookShelfCover caseItem={c} />
                   </div>
 
@@ -121,10 +120,8 @@ export function MockupHeroSection({
                       type="button"
                       className={`w-full py-1.5 px-2 rounded-full text-[10px] sm:text-xs font-bold text-center transition truncate shadow-md ${
                         c.isLocked
-                          ? 'bg-gradient-to-r from-crypta-pink to-rose-700 text-white opacity-85'
-                          : isSelected
-                            ? 'bg-crypta-yellow text-black font-black shadow-yellow-glow'
-                            : 'bg-gradient-to-r from-crypta-pink to-rose-700 text-white hover:from-rose-500 hover:to-crypta-pink'
+                          ? 'bg-gradient-to-r from-stone-800 to-stone-900 text-stone-400 border border-stone-700'
+                          : 'bg-gradient-to-r from-crypta-pink to-rose-700 text-white hover:from-rose-500 hover:to-crypta-pink group-hover:scale-105'
                       }`}
                     >
                       {c.isLocked ? 'قريباً' : c.title.replace('قضية ', '').replace('لغز ', '')}
@@ -137,45 +134,9 @@ export function MockupHeroSection({
 
           {/* Swipe indicator for Mobile & iPad */}
           <div className="lg:hidden flex items-center justify-center gap-2 text-[11px] text-stone-400 font-mono pt-1">
-            <span>اسحب لتصفح باقي الكتب على الرف</span>
+            <span>اسحب لتصفح باقي القصص على الرف</span>
             <span className="text-crypta-pink animate-pulse text-sm">←</span>
           </div>
-
-        </div>
-
-        {/* ================= LEVEL NUMBERED PROGRESS LADDER ================= */}
-        <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-3 pt-4 sm:pt-6 pb-2 overflow-x-auto scrollbar-none px-2">
-          
-          {/* Yellow Label: المستوى */}
-          <span className="text-lg sm:text-2xl font-black text-crypta-yellow ml-2 sm:ml-4 select-none shrink-0">
-            المستوى
-          </span>
-
-          {/* Numbers 1 to 10 in Magenta/Pink Circles */}
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-            const isSelected = selectedLevel === num;
-            const targetCase = cases.find(c => c.levelNumber === num);
-
-            return (
-              <button
-                key={num}
-                type="button"
-                onClick={() => {
-                  onSelectLevel(num);
-                  if (targetCase && !targetCase.isLocked) {
-                    onSelectCase(targetCase);
-                  }
-                }}
-                className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full font-black text-xs sm:text-sm font-sans flex items-center justify-center transition-all transform hover:scale-110 shrink-0 ${
-                  isSelected
-                    ? 'bg-crypta-yellow text-black ring-2 ring-white shadow-yellow-glow scale-110'
-                    : 'bg-gradient-to-b from-[#f02874] to-[#ec1368] text-white shadow-md shadow-pink-900/40 hover:from-rose-400 hover:to-pink-600'
-                }`}
-              >
-                {num}
-              </button>
-            );
-          })}
 
         </div>
 

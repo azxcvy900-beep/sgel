@@ -11,12 +11,14 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { SolutionVaultModal } from './components/SolutionVaultModal';
 import { DetectiveProfileModal } from './components/DetectiveProfileModal';
 import { AdminCaseManager } from './components/AdminCaseManager';
+import { DeveloperPortal } from './components/DeveloperPortal';
 import { Footer } from './components/Footer';
 import { INITIAL_CASES, DETECTIVE_RANKS } from './data/casesData';
-import { subscribeToCases, addCaseToFirebase, saveOrderToFirebase } from './firebase/db';
+import { subscribeToCases, addCaseToFirebase, deleteCaseFromFirebase, saveOrderToFirebase } from './firebase/db';
 
 export function App() {
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(true);
+  const [currentPortal, setCurrentPortal] = useState('store'); // 'store' | 'developer'
   const [cases, setCases] = useState(INITIAL_CASES);
   const [cart, setCart] = useState([]);
   const [purchasedCases, setPurchasedCases] = useState([]);
@@ -24,9 +26,6 @@ export function App() {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [isMiniGameSolved, setIsMiniGameSolved] = useState(false);
   const [hasLoadedLocal, setHasLoadedLocal] = useState(false);
-
-  // Level selector state
-  const [selectedLevel, setSelectedLevel] = useState(1);
 
   // Modal States
   const [selectedCase, setSelectedCase] = useState(null);
@@ -196,6 +195,17 @@ export function App() {
     showToast(`تم نشر كتاب "${newCase.title}" في المتجر بنجاح ✨`);
   };
 
+  // Admin delete case handler (with Firebase sync)
+  const handleDeleteCase = async (caseId) => {
+    setCases(cases.filter(c => c.id !== caseId));
+    try {
+      await deleteCaseFromFirebase(caseId);
+      showToast('تم حذف القضية من المتجر وقاعدة البيانات بنجاح 🗑️');
+    } catch (err) {
+      console.warn("Could not delete case from Firebase:", err);
+    }
+  };
+
   // Available tags collection
   const allTags = Array.from(
     new Set(cases.flatMap(c => c.tags || []))
@@ -216,6 +226,19 @@ export function App() {
 
     return matchesSearch && matchesDifficulty && matchesTag;
   });
+
+  // If in Developer / Author Portal Mode
+  if (currentPortal === 'developer') {
+    return (
+      <DeveloperPortal
+        cases={cases}
+        onAddCase={handleAddCase}
+        onDeleteCase={handleDeleteCase}
+        onSwitchToStore={() => setCurrentPortal('store')}
+        isFirebaseConnected={isFirebaseConnected}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-crypta-pink selection:text-white relative">
@@ -240,7 +263,7 @@ export function App() {
         onOpenCart={() => setIsCartOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenSolutionVault={() => setIsSolutionVaultOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenDeveloperPortal={() => setCurrentPortal('developer')}
         onScrollToCases={() => {
           document.getElementById('cases-catalog')?.scrollIntoView({ behavior: 'smooth' });
         }}
@@ -252,12 +275,10 @@ export function App() {
         isFirebaseConnected={isFirebaseConnected}
       />
 
-      {/* Mockup Hero Banner Section (Faithful reproduction of user design) */}
+      {/* Mockup Hero Banner Section (Clean shelf without level numbers) */}
       <MockupHeroSection
         cases={cases}
         onSelectCase={(item) => setSelectedCase(item)}
-        selectedLevel={selectedLevel}
-        onSelectLevel={(lvl) => setSelectedLevel(lvl)}
       />
 
 

@@ -16,7 +16,7 @@ export function Navbar({
   onOpenCart, 
   onOpenProfile, 
   onOpenSolutionVault, 
-  onOpenAdmin, 
+  onOpenDeveloperPortal, 
   onScrollToCases,
   userRank,
   purchasedCasesCount,
@@ -117,13 +117,14 @@ export function Navbar({
               </div>
             </button>
 
-            {/* Admin Add Case Button (Desktop & iPad) */}
+            {/* Developer Portal Button (Desktop & iPad) */}
             <button
-              onClick={onOpenAdmin}
-              title="إضافة قضية جديدة"
-              className="hidden sm:flex p-2.5 rounded-xl bg-stone-900 border border-stone-800 text-stone-400 hover:text-white transition"
+              onClick={onOpenDeveloperPortal}
+              title="لوحة تحكم المطور والمؤلف"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-stone-800 hover:border-crypta-pink text-stone-300 hover:text-white transition text-xs font-bold"
             >
-              <PlusCircle className="w-4 h-4" />
+              <span>🛠️</span>
+              <span>لوحة المطور</span>
             </button>
 
             {/* Cart Button */}
@@ -216,12 +217,12 @@ export function Navbar({
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
-                onOpenAdmin();
+                onOpenDeveloperPortal();
               }}
-              className="flex items-center gap-2 p-3 rounded-xl bg-stone-900 text-stone-200 text-xs font-bold hover:text-crypta-yellow transition text-right"
+              className="flex items-center gap-2 p-3 rounded-xl bg-stone-900 text-stone-200 text-xs font-bold hover:text-crypta-pink transition text-right"
             >
-              <PlusCircle className="w-4 h-4 text-amber-400" />
-              <span>إضافة قضية</span>
+              <span className="text-base">🛠️</span>
+              <span>لوحة المطور</span>
             </button>
           </div>
 

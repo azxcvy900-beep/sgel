@@ -1,4 +1,4 @@
-import { ref, set, get, onValue, push } from "firebase/database";
+import { ref, set, get, onValue, push, remove } from "firebase/database";
 import { rtdb } from "./config";
 import { INITIAL_CASES } from "../data/casesData";
 
@@ -64,6 +64,20 @@ export async function addCaseToFirebase(newCase) {
 }
 
 /**
+ * Deletes a case or book from Firebase
+ */
+export async function deleteCaseFromFirebase(caseId) {
+  try {
+    const caseRef = ref(rtdb, `${CASES_PATH}/${caseId}`);
+    await remove(caseRef);
+    return { success: true };
+  } catch (error) {
+    console.warn("Failed to delete case from Firebase:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Records a new purchase order in Firebase
  */
 export async function saveOrderToFirebase(order) {
@@ -78,5 +92,37 @@ export async function saveOrderToFirebase(order) {
   } catch (error) {
     console.warn("Failed to save order to Firebase:", error.message);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Subscribes to customer orders in Firebase
+ */
+export function subscribeToOrders(onSuccess, onError) {
+  try {
+    const ordersRef = ref(rtdb, ORDERS_PATH);
+    const unsubscribe = onValue(
+      ordersRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const ordersArray = Object.entries(data).map(([key, val]) => ({
+            id: key,
+            ...val
+          })).reverse();
+          onSuccess(ordersArray);
+        } else {
+          onSuccess([]);
+        }
+      },
+      (error) => {
+        console.warn("Orders subscription error:", error.message);
+        if (onError) onError(error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    if (onError) onError(err);
+    return () => {};
   }
 }
