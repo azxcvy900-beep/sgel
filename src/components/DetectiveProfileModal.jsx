@@ -7,7 +7,7 @@ import {
   Eye, 
   FileText 
 } from 'lucide-react';
-import { generateCasePdf } from '../utils/pdfGenerator';
+import { generateCasePdf, downloadCaseFile } from '../utils/pdfGenerator';
 import { DETECTIVE_RANKS } from '../data/casesData';
 
 export function DetectiveProfileModal({ 
@@ -124,11 +124,11 @@ export function DetectiveProfileModal({
                       </button>
 
                       <button
-                        onClick={() => generateCasePdf(c, true)}
-                        className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-dark-950 text-xs font-black transition flex items-center gap-1.5 shadow"
+                        onClick={() => downloadCaseFile(c)}
+                        className="px-3.5 py-2 rounded-xl bg-crypta-yellow hover:bg-yellow-400 text-black text-xs font-black transition flex items-center gap-1.5 shadow"
                       >
                         <DownloadCloud className="w-3.5 h-3.5" />
-                        <span>تحميل PDF</span>
+                        <span>{c.fileData?.includes('zip') || c.fileName?.endsWith('.zip') ? 'تحميل ZIP' : 'تحميل الملف'}</span>
                       </button>
                     </div>
                   </div>

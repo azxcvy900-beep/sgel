@@ -10,7 +10,7 @@ import {
   ArrowRight,
   FolderArchive
 } from 'lucide-react';
-import { generateCasePdf } from '../utils/pdfGenerator';
+import { generateCasePdf, downloadCaseFile } from '../utils/pdfGenerator';
 
 export function CheckoutModal({ 
   isOpen, 
@@ -66,7 +66,7 @@ export function CheckoutModal({
   };
 
   const handleDownloadSinglePdf = (item) => {
-    generateCasePdf(item, true);
+    downloadCaseFile(item);
   };
 
   return (
@@ -235,7 +235,10 @@ export function CheckoutModal({
                         className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-dark-950 font-black text-xs flex items-center gap-1.5 transition shadow"
                       >
                         <DownloadCloud className="w-3.5 h-3.5" />
-                        <span>تحميل PDF</span>
+                        <span>
+                          {item.fileUrl ? 'فتح رابط التحميل' : 
+                           item.fileName?.endsWith('.zip') || item.fileData?.includes('zip') ? 'تحميل ZIP' : 'تحميل الملف'}
+                        </span>
                       </button>
                     </div>
                   ))}

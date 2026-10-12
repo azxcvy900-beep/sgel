@@ -1,6 +1,26 @@
 import { jsPDF } from 'jspdf';
 
 /**
+ * Downloads the custom uploaded PDF/ZIP, opens cloud link, or falls back to generated PDF
+ */
+export function downloadCaseFile(item) {
+  if (item.fileUrl) {
+    window.open(item.fileUrl, '_blank');
+    return;
+  }
+  if (item.fileData) {
+    const link = document.createElement('a');
+    link.href = item.fileData;
+    link.download = item.fileName || `${item.title}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+  generateCasePdf(item, true);
+}
+
+/**
  * Generates an authentic Detective Case File PDF
  * @param {Object} caseItem - The case dossier object
  * @param {boolean} includeSolution - Whether to include the sealed solution section

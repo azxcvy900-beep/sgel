@@ -11,9 +11,14 @@ import {
   Upload,
   Image as ImageIcon,
   Tag,
-  FileText
+  FileText,
+  FileArchive,
+  Link as LinkIcon,
+  Download,
+  AlertCircle
 } from 'lucide-react';
 import { subscribeToOrders } from '../firebase/db';
+import { downloadCaseFile } from '../utils/pdfGenerator';
 
 export function DeveloperPortal({ 
   cases, 
@@ -27,8 +32,9 @@ export function DeveloperPortal({
   const [isPublishing, setIsPublishing] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
   const fileInputRef = useRef(null);
+  const caseFileInputRef = useRef(null);
 
-  // Form State: Exactly the 6 fields requested
+  // Form State: 6 core fields + digital product file attachment
   const [formData, setFormData] = useState({
     title: '',          // 1. اسم القضية
     synopsis: '',       // 2. وصف مشوق
@@ -36,6 +42,10 @@ export function DeveloperPortal({
     category: 'متمرس',  // 4. مستوى أو تصنيف القضية
     originalPrice: '',  // 5. السعر قبل إن وجد
     price: '',          // 6. السعر بعد
+    fileName: '',       // اسم ملف القضية المرفق
+    fileData: '',       // بيانات الملف (Data URL)
+    fileSize: '',       // حجم الملف
+    fileUrl: '',        // أو رابط تحميل سحابي خارجي
   });
 
   // Subscribe to live orders from Firebase
@@ -60,6 +70,24 @@ export function DeveloperPortal({
       const reader = new FileReader();
       reader.onload = () => {
         setFormData(prev => ({ ...prev, coverImage: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle local PDF / ZIP case file upload
+  const handleCaseFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData(prev => ({
+          ...prev,
+          fileData: reader.result,
+          fileName: file.name,
+          fileSize: `${sizeMb} MB`
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -92,7 +120,10 @@ export function DeveloperPortal({
       rating: 5.0,
       reviewsCount: 1,
       isFeatured: true,
-      fileSize: '4.8 MB',
+      fileSize: formData.fileSize || '4.8 MB',
+      fileName: formData.fileName || '',
+      fileData: formData.fileData || '',
+      fileUrl: formData.fileUrl?.trim() || '',
       pages: 38,
       classification: 'سري للغاية',
       hints: [
@@ -122,8 +153,13 @@ export function DeveloperPortal({
       category: 'متمرس',
       originalPrice: '',
       price: '',
+      fileName: '',
+      fileData: '',
+      fileSize: '',
+      fileUrl: '',
     });
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (caseFileInputRef.current) caseFileInputRef.current.value = '';
   };
 
   // Stats
@@ -412,6 +448,102 @@ export function DeveloperPortal({
                 </div>
               </div>
 
+              {/* 7. إرفاق ملف القضية الرقمي (PDF أو ZIP) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-black/80 border border-crypta-pink/40 space-y-3.5 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-bold text-crypta-yellow flex items-center gap-2">
+                    <FileArchive className="w-4 h-4 text-crypta-pink" />
+                    <span>7. ملف القضية الرقمي (PDF أو ZIP) للعميل</span>
+                  </label>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-crypta-pink/20 text-crypta-pink border border-crypta-pink/40 font-bold">
+                    المنتج الرقمي للتنزيل
+                  </span>
+                </div>
+                <p className="text-xs text-stone-300 leading-relaxed">
+                  الملف الذي سيحصل عليه العميل ويقوم بتحميله مباشرة بعد الدفع. يمكنك رفع ملف من جهازك (<span className="text-crypta-pink font-mono font-bold">PDF, ZIP, RAR</span>) أو وضع رابط تحميل خارجي مباشر (<span className="text-crypta-yellow font-bold">Google Drive / Dropbox</span>).
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* File Upload from PC */}
+                  <div>
+                    <input
+                      type="file"
+                      ref={caseFileInputRef}
+                      accept=".pdf,.zip,.rar,.epub,.7z,application/pdf,application/zip"
+                      onChange={handleCaseFileChange}
+                      className="hidden"
+                      id="case-file-upload"
+                    />
+                    <label
+                      htmlFor="case-file-upload"
+                      className="flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-xl border-2 border-dashed border-stone-700 hover:border-crypta-pink bg-stone-900/90 hover:bg-stone-900 cursor-pointer text-xs font-bold text-white transition shadow-sm group"
+                    >
+                      <Upload className="w-4 h-4 text-crypta-pink group-hover:scale-110 transition" />
+                      <span>اختر ملف PDF أو ZIP من جهازك</span>
+                    </label>
+                  </div>
+
+                  {/* Cloud URL */}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-stone-500">
+                      <LinkIcon className="w-4 h-4 text-crypta-yellow" />
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="أو الصق رابط تحميل سحابي (Drive...)"
+                      value={formData.fileUrl}
+                      onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
+                      className="w-full bg-stone-900/90 border border-stone-700 focus:border-crypta-yellow rounded-xl pr-10 pl-4 py-3.5 text-xs text-white placeholder-stone-500 focus:outline-none font-mono transition"
+                    />
+                  </div>
+                </div>
+
+                {/* File Attachment Status Badge */}
+                {formData.fileName && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs">
+                    <div className="flex items-center gap-2 font-mono">
+                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="font-bold truncate max-w-xs">{formData.fileName}</span>
+                      <span className="text-[10px] bg-emerald-900/70 px-2 py-0.5 rounded text-emerald-200">
+                        {formData.fileSize}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, fileName: '', fileData: '', fileSize: '' }));
+                        if (caseFileInputRef.current) caseFileInputRef.current.value = '';
+                      }}
+                      className="text-stone-400 hover:text-rose-400 p-1 text-xs font-bold"
+                      title="إلغاء الملف"
+                    >
+                      ✕ إزالة
+                    </button>
+                  </div>
+                )}
+
+                {formData.fileUrl && !formData.fileName && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-cyan-950/50 border border-cyan-500/40 text-cyan-300 text-xs font-mono">
+                    <div className="flex items-center gap-2 truncate">
+                      <LinkIcon className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span className="truncate">{formData.fileUrl}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, fileUrl: '' }))}
+                      className="text-stone-400 hover:text-rose-400 p-1 text-xs shrink-0 font-bold"
+                    >
+                      ✕ إزالة
+                    </button>
+                  </div>
+                )}
+
+                <div className="text-[11px] text-stone-500 flex items-center gap-1.5 pt-1">
+                  <span className="text-crypta-pink font-bold">⚡ ملاحظة:</span>
+                  <span>إذا لم تقم برفع ملف، سيتم تلقائياً إنشاء وتنزيل ملف تحقيق PDF جنائي تفاعلي ومصمم خصيصاً للقضية.</span>
+                </div>
+              </div>
+
               {/* Submit Button */}
               <div className="pt-4">
                 <button
@@ -470,6 +602,33 @@ export function DeveloperPortal({
                     <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
                       {item.synopsis}
                     </p>
+
+                    {/* Attached digital file indicator */}
+                    <div className="mt-3 pt-2.5 border-t border-stone-800/80 flex items-center justify-between gap-2 text-[11px]">
+                      {item.fileUrl ? (
+                        <span className="inline-flex items-center gap-1 text-cyan-400 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/40">
+                          <LinkIcon className="w-3 h-3" /> رابط خارجي
+                        </span>
+                      ) : item.fileData ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40 font-mono">
+                          <FileArchive className="w-3 h-3" /> {item.fileName || 'ملف مرفق'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-stone-400 bg-stone-800/60 px-2 py-0.5 rounded">
+                          <FileText className="w-3 h-3 text-stone-500" /> PDF سينمائي تلقائي
+                        </span>
+                      )}
+
+                      {/* Quick test download */}
+                      <button
+                        type="button"
+                        onClick={() => downloadCaseFile(item)}
+                        className="text-stone-400 hover:text-crypta-yellow inline-flex items-center gap-1 text-[11px] font-bold hover:underline transition"
+                        title="تجربة تحميل الملف"
+                      >
+                        <Download className="w-3 h-3" /> تجربة
+                      </button>
+                    </div>
                   </div>
 
                   <div className="pt-3 border-t border-stone-800 flex items-center justify-between">
