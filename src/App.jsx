@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { MockupHeroSection } from './components/MockupHeroSection';
@@ -15,31 +17,13 @@ import { subscribeToCases, addCaseToFirebase, saveOrderToFirebase } from './fire
 
 export function App() {
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(true);
-  // Persistence with localStorage fallback
-  const [cases, setCases] = useState(() => {
-    const saved = localStorage.getItem('sijill_cases_v3');
-    return saved ? JSON.parse(saved) : INITIAL_CASES;
-  });
-
-  const [cart, setCart] = useState(() => {
-    const saved = localStorage.getItem('sijill_cart_v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [purchasedCases, setPurchasedCases] = useState(() => {
-    const saved = localStorage.getItem('sijill_purchased_v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [unlockedSolutions, setUnlockedSolutions] = useState(() => {
-    const saved = localStorage.getItem('sijill_unlocked_solutions_v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [cases, setCases] = useState(INITIAL_CASES);
+  const [cart, setCart] = useState([]);
+  const [purchasedCases, setPurchasedCases] = useState([]);
+  const [unlockedSolutions, setUnlockedSolutions] = useState([]);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [isMiniGameSolved, setIsMiniGameSolved] = useState(() => {
-    return localStorage.getItem('sijill_minigame_solved_v3') === 'true';
-  });
+  const [isMiniGameSolved, setIsMiniGameSolved] = useState(false);
+  const [hasLoadedLocal, setHasLoadedLocal] = useState(false);
 
   // Level selector state
   const [selectedLevel, setSelectedLevel] = useState(1);
@@ -65,6 +49,29 @@ export function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Safe SSR hydration: Load saved data from localStorage on client mount
+  useEffect(() => {
+    try {
+      const savedCases = localStorage.getItem('sijill_cases_v3');
+      if (savedCases) setCases(JSON.parse(savedCases));
+
+      const savedCart = localStorage.getItem('sijill_cart_v3');
+      if (savedCart) setCart(JSON.parse(savedCart));
+
+      const savedPurchased = localStorage.getItem('sijill_purchased_v3');
+      if (savedPurchased) setPurchasedCases(JSON.parse(savedPurchased));
+
+      const savedSolutions = localStorage.getItem('sijill_unlocked_solutions_v3');
+      if (savedSolutions) setUnlockedSolutions(JSON.parse(savedSolutions));
+
+      const savedMiniGame = localStorage.getItem('sijill_minigame_solved_v3');
+      if (savedMiniGame === 'true') setIsMiniGameSolved(true);
+    } catch (e) {
+      console.warn("Could not load from localStorage:", e);
+    }
+    setHasLoadedLocal(true);
+  }, []);
+
   // Subscribe to Firebase Realtime Database for Cases
   useEffect(() => {
     const unsubscribe = subscribeToCases(
@@ -84,22 +91,34 @@ export function App() {
     };
   }, []);
 
-  // Sync to local storage
+  // Sync to local storage only after initial client mount
   useEffect(() => {
-    localStorage.setItem('sijill_cases_v3', JSON.stringify(cases));
-  }, [cases]);
+    if (!hasLoadedLocal) return;
+    try {
+      localStorage.setItem('sijill_cases_v3', JSON.stringify(cases));
+    } catch (e) {}
+  }, [cases, hasLoadedLocal]);
 
   useEffect(() => {
-    localStorage.setItem('sijill_cart_v3', JSON.stringify(cart));
-  }, [cart]);
+    if (!hasLoadedLocal) return;
+    try {
+      localStorage.setItem('sijill_cart_v3', JSON.stringify(cart));
+    } catch (e) {}
+  }, [cart, hasLoadedLocal]);
 
   useEffect(() => {
-    localStorage.setItem('sijill_purchased_v3', JSON.stringify(purchasedCases));
-  }, [purchasedCases]);
+    if (!hasLoadedLocal) return;
+    try {
+      localStorage.setItem('sijill_purchased_v3', JSON.stringify(purchasedCases));
+    } catch (e) {}
+  }, [purchasedCases, hasLoadedLocal]);
 
   useEffect(() => {
-    localStorage.setItem('sijill_unlocked_solutions_v3', JSON.stringify(unlockedSolutions));
-  }, [unlockedSolutions]);
+    if (!hasLoadedLocal) return;
+    try {
+      localStorage.setItem('sijill_unlocked_solutions_v3', JSON.stringify(unlockedSolutions));
+    } catch (e) {}
+  }, [unlockedSolutions, hasLoadedLocal]);
 
   // Determine User Detective Rank
   const calculateRank = () => {
