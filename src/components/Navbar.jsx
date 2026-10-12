@@ -30,18 +30,24 @@ export function Navbar({
         <div className="flex items-center justify-between h-20">
           
           {/* Logo & Brand Identity */}
-          <div 
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          >
-            {/* Circular Magenta Ring Logo */}
-            <div className="relative flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-crypta-pink bg-black shadow-pink-glow group-hover:scale-105 transition-transform shrink-0">
-              <span className="font-mono text-[8px] sm:text-[9px] font-black tracking-widest text-white uppercase">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Circular Magenta Ring Logo (Secret gateway to Developer Portal) */}
+            <button
+              type="button"
+              onClick={onOpenDeveloperPortal}
+              title="SIJILL"
+              aria-label="SIJILL"
+              className="relative flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-crypta-pink bg-black shadow-pink-glow hover:scale-110 active:scale-95 transition-all duration-200 shrink-0 cursor-pointer group"
+            >
+              <span className="font-mono text-[8px] sm:text-[9px] font-black tracking-widest text-white uppercase group-hover:text-crypta-pink transition-colors select-none">
                 SIJILL
               </span>
-            </div>
+            </button>
             
-            <div>
+            <div 
+              className="cursor-pointer"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            >
               <div className="flex items-center gap-1.5">
                 <span className="text-xl sm:text-2xl font-black font-sans tracking-wide text-white">
                   سِـجِـلّ
@@ -88,21 +94,8 @@ export function Navbar({
             </button>
           </nav>
 
-          {/* Right Action Icons: Rank, Admin, Cart & Mobile Menu Toggle */}
+          {/* Right Action Icons: Rank, Cart & Mobile Menu Toggle */}
           <div className="flex items-center gap-2 sm:gap-3">
-            
-            {/* Firebase Database Status Indicator */}
-            <div 
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-stone-900 border border-stone-800 text-[10px] select-none"
-              title={isFirebaseConnected ? "قاعدة بيانات Firebase متصلة وحية" : "جاري الاتصال بـ Firebase أو الوضع المحلي"}
-            >
-              <span className={`w-2 h-2 rounded-full ${isFirebaseConnected ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400 animate-pulse'}`} />
-              <span className="font-mono text-stone-300 font-bold">Firebase</span>
-              <span className="text-stone-600">•</span>
-              <span className={isFirebaseConnected ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
-                {isFirebaseConnected ? "متصل" : "محلي"}
-              </span>
-            </div>
 
             {/* Detective Rank Badge (Desktop & iPad) */}
             <button 
@@ -115,16 +108,6 @@ export function Navbar({
                 <div className="text-[9px] text-stone-500 leading-none">رتبة المحقق</div>
                 <div className="font-bold text-crypta-yellow text-xs">{userRank?.name || 'متدرب'}</div>
               </div>
-            </button>
-
-            {/* Developer Portal Button (Desktop & iPad) */}
-            <button
-              onClick={onOpenDeveloperPortal}
-              title="لوحة تحكم المطور والمؤلف"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-stone-800 hover:border-crypta-pink text-stone-300 hover:text-white transition text-xs font-bold"
-            >
-              <span>🛠️</span>
-              <span>لوحة المطور</span>
             </button>
 
             {/* Cart Button */}
@@ -208,33 +191,11 @@ export function Navbar({
                 setIsMobileMenuOpen(false);
                 onOpenProfile();
               }}
-              className="flex items-center gap-2 p-3 rounded-xl bg-stone-900 text-stone-200 text-xs font-bold hover:text-crypta-yellow transition text-right"
+              className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-xl bg-stone-900 text-stone-200 text-xs font-bold hover:text-crypta-yellow transition text-center"
             >
               <FolderArchive className="w-4 h-4 text-emerald-400" />
-              <span>أرشيفي الخاص</span>
+              <span>أرشيفي الخاص (ملفاتي المحفوظة)</span>
             </button>
-
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onOpenDeveloperPortal();
-              }}
-              className="flex items-center gap-2 p-3 rounded-xl bg-stone-900 text-stone-200 text-xs font-bold hover:text-crypta-pink transition text-right"
-            >
-              <span className="text-base">🛠️</span>
-              <span>لوحة المطور</span>
-            </button>
-          </div>
-
-          {/* Firebase Connection Status (Mobile) */}
-          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-stone-900/60 border border-stone-850 text-[11px]">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isFirebaseConnected ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400 animate-pulse'}`} />
-              <span className="font-mono text-stone-300">Firebase Realtime DB</span>
-            </div>
-            <span className={isFirebaseConnected ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
-              {isFirebaseConnected ? "متصل ومباشر 🟢" : "الوضع المحلي 🟡"}
-            </span>
           </div>
 
         </div>
