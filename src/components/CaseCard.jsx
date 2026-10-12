@@ -32,7 +32,7 @@ export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurc
         {/* Level Tag & Rating */}
         <div className="flex items-center justify-between text-xs">
           <span className="px-2.5 py-0.5 rounded-full bg-crypta-pink/20 text-crypta-pink border border-crypta-pink/30 text-[10px] font-bold">
-            المستوى {caseItem.levelNumber}
+            {caseItem.difficulty || caseItem.category || 'ملف تحقيق'}
           </span>
 
           <div className="flex items-center gap-1 text-crypta-yellow font-mono text-xs">

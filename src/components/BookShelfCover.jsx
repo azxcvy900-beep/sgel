@@ -1,6 +1,23 @@
 import React from 'react';
 
 export function BookShelfCover({ caseItem }) {
+  // If custom cover image is uploaded/provided
+  if (caseItem.coverImage) {
+    return (
+      <div className="w-full aspect-[1/1.55] rounded-xl overflow-hidden relative shadow-card-shelf border border-white/10 group-hover:border-crypta-pink/60 transition-all duration-300 bg-stone-950">
+        <img 
+          src={caseItem.coverImage} 
+          alt={caseItem.title} 
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 text-right pointer-events-none">
+          <span className="text-[10px] font-bold text-white line-clamp-1">{caseItem.title}</span>
+          <span className="text-[9px] font-mono text-crypta-yellow font-bold">{caseItem.price} ر.س</span>
+        </div>
+      </div>
+    );
+  }
+
   if (caseItem.isLocked) {
     // Locked / Upcoming Book (Cases 6 to 10)
     return (

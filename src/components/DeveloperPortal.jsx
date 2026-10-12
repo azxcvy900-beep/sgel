@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   PlusCircle, 
   BookOpen, 
@@ -7,15 +7,13 @@ import {
   Eye, 
   DollarSign, 
   CheckCircle, 
-  TrendingUp, 
-  Clock, 
-  Sparkles,
   ArrowLeft,
-  Database,
-  FileText,
-  AlertCircle
+  Upload,
+  Image as ImageIcon,
+  Tag,
+  FileText
 } from 'lucide-react';
-import { subscribeToOrders, deleteCaseFromFirebase } from '../firebase/db';
+import { subscribeToOrders } from '../firebase/db';
 
 export function DeveloperPortal({ 
   cases, 
@@ -28,26 +26,16 @@ export function DeveloperPortal({
   const [orders, setOrders] = useState([]);
   const [isPublishing, setIsPublishing] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
+  const fileInputRef = useRef(null);
 
-  // Form State for publishing a new story
+  // Form State: Exactly the 6 fields requested
   const [formData, setFormData] = useState({
-    title: '',
-    subtitle: 'قضية جنائية مشفرة',
-    caseNumber: `CASE #${Math.floor(700 + Math.random() * 250)}-س`,
-    price: 29,
-    originalPrice: 49,
-    category: 'جريمة غامضة',
-    difficulty: 'متمرس',
-    pages: 42,
-    estimatedSolveTime: 'ساعتان',
-    classification: 'سري للغاية',
-    synopsis: '',
-    culprit: '',
-    motive: '',
-    method: '',
-    clues: '1. أثر بصمة جزئية على المقبض النحاسي.\n2. فاتورة مقهى في توقيت ارتكاب الجريمة.\n3. تسجيل كاميرا المراقبة المقابل للمبنى.',
-    tags: 'غموض, جريمة, تحقيق, ذكاء',
-    coverStyle: 'noir-red' // 'noir-red' | 'noir-gold' | 'noir-cyan' | 'noir-purple'
+    title: '',          // 1. اسم القضية
+    synopsis: '',       // 2. وصف مشوق
+    coverImage: '',     // 3. صورة للغلاف
+    category: 'متمرس',  // 4. مستوى أو تصنيف القضية
+    originalPrice: '',  // 5. السعر قبل إن وجد
+    price: '',          // 6. السعر بعد
   });
 
   // Subscribe to live orders from Firebase
@@ -65,124 +53,80 @@ export function DeveloperPortal({
     setTimeout(() => setSuccessToast(null), 3500);
   };
 
+  // Handle local image file upload from device
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData(prev => ({ ...prev, coverImage: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.synopsis.trim()) {
-      alert('يرجى كتابة عنوان القصة والملخص التشويقي على الأقل.');
+    if (!formData.title.trim()) {
+      alert('يرجى إدخال اسم القضية.');
+      return;
+    }
+    if (!formData.price) {
+      alert('يرجى إدخال سعر البيع (السعر بعد).');
       return;
     }
 
     setIsPublishing(true);
 
-    const gradientMap = {
-      'noir-red': 'from-[#2b0914] via-[#150509] to-[#000000]',
-      'noir-gold': 'from-[#2a1e05] via-[#140e02] to-[#000000]',
-      'noir-cyan': 'from-[#061e24] via-[#020e12] to-[#000000]',
-      'noir-purple': 'from-[#1c0828] via-[#0d0314] to-[#000000]',
-    };
-
-    const accentMap = {
-      'noir-red': 'text-rose-400',
-      'noir-gold': 'text-amber-400',
-      'noir-cyan': 'text-cyan-400',
-      'noir-purple': 'text-fuchsia-400',
-    };
-
     const newCase = {
       id: `case-${Date.now()}`,
-      caseNumber: formData.caseNumber,
-      title: formData.title,
-      subtitle: formData.subtitle,
+      caseNumber: `CASE #${Math.floor(700 + Math.random() * 250)}-س`,
+      title: formData.title.trim(),
+      subtitle: formData.category || 'ملف تحقيق جنائي',
+      synopsis: formData.synopsis.trim() || 'ملف قضية جنائية غامضة بانتظار فك طلاسمها.',
+      coverImage: formData.coverImage.trim() || '/detective_silhouette.jpg',
+      difficulty: formData.category,
+      category: formData.category,
+      originalPrice: formData.originalPrice ? Number(formData.originalPrice) : null,
       price: Number(formData.price),
-      originalPrice: Number(formData.originalPrice),
-      difficulty: formData.difficulty,
-      pages: Number(formData.pages),
-      fileSize: '4.8 MB',
-      estimatedSolveTime: formData.estimatedSolveTime,
-      classification: formData.classification,
       rating: 5.0,
       reviewsCount: 1,
       isFeatured: true,
-      coverTheme: {
-        gradient: gradientMap[formData.coverStyle] || gradientMap['noir-red'],
-        accent: accentMap[formData.coverStyle] || 'text-rose-400',
-        borderAccent: 'border-stone-800',
-        goldFoil: true,
-        symbol: '🔍',
-        categoryBadge: formData.category
-      },
-      synopsis: formData.synopsis,
-      evidenceList: formData.clues.split('\n').filter(Boolean).map((line, idx) => ({
-        id: idx + 1,
-        title: `حرز جنائي #${idx + 1}`,
-        description: line.trim()
-      })),
-      suspects: [
-        {
-          name: formData.culprit || 'المشتبه به الرئيسي',
-          role: 'المشتبه به الأول',
-          alibi: 'ادعى التواجد خارج مكان الحادث، وتوجد ثغرة في شهادته.',
-          motive: formData.motive || 'دافع مالي وانتقامي.',
-          suspicionScore: 92
-        }
-      ],
+      fileSize: '4.8 MB',
+      pages: 38,
+      classification: 'سري للغاية',
       hints: [
-        {
-          level: 1,
-          title: 'تلميح مبدئي',
-          hint: 'دقق جيداً في توقيت الأدلة الجنائية وفارق الدقائق المعدودة.'
-        },
-        {
-          level: 2,
-          title: 'تلميح متقدم',
-          hint: 'هناك تناقض واضح بين إفادة المتهم والأدلة المحرزة.'
-        },
-        {
-          level: 3,
-          title: 'كشف هوية الجاني',
-          hint: `الجاني الحقيقي هو: ${formData.culprit || 'المشتبه به الأول'}.`
-        }
+        { level: 1, title: 'تلميح المحقق', hint: 'دقق في تسلسل الأحداث والأدلة المادية في ملف القضية.' }
       ],
       solution: {
-        culprit: formData.culprit || 'الجاني',
-        motive: formData.motive || 'دافع انتقامي ومادي مدروس',
-        method: formData.method || 'تم تنفيذ الجريمة باستغلال ثغرة التوقيت وتشتيت انتباه الشهود.',
+        culprit: 'مُسجل في تقرير الحل الختامي',
+        motive: 'دافع جنائي مشفر',
+        method: formData.synopsis.trim(),
         deductionSteps: [
-          '1. تحليل توقيت الأحراز واستبعاد الفرضيات الخاطئة.',
-          '2. مطابقة خط سير المتهم مع التقرير المرفق بالملف.',
-          '3. إثبات الإدانة القاطعة بالدليل المادي القاطع.'
+          '1. تحليل مسرح الحادثة بدقة.',
+          '2. مطابقة الإفادات وإثبات الإدانة.'
         ]
       },
-      tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean)
+      tags: [formData.category, 'تحقيق', 'غموض'].filter(Boolean)
     };
 
     await onAddCase(newCase);
     setIsPublishing(false);
-    notify(`تم نشر قصة "${newCase.title}" وحفظها في السحابة بنجاح! 🎉`);
+    notify(`تم نشر قضية "${newCase.title}" وحفظها في السحابة بنجاح! 🎉`);
 
     // Reset Form
     setFormData({
       title: '',
-      subtitle: 'قضية جنائية مشفرة',
-      caseNumber: `CASE #${Math.floor(700 + Math.random() * 250)}-س`,
-      price: 29,
-      originalPrice: 49,
-      category: 'جريمة غامضة',
-      difficulty: 'متمرس',
-      pages: 42,
-      estimatedSolveTime: 'ساعتان',
-      classification: 'سري للغاية',
       synopsis: '',
-      culprit: '',
-      motive: '',
-      method: '',
-      clues: '1. أثر بصمة جزئية على المقبض النحاسي.\n2. فاتورة مقهى في توقيت ارتكاب الجريمة.\n3. تسجيل كاميرا المراقبة المقابل للمبنى.',
-      tags: 'غموض, جريمة, تحقيق, ذكاء',
-      coverStyle: 'noir-red'
+      coverImage: '',
+      category: 'متمرس',
+      originalPrice: '',
+      price: '',
     });
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Calculate quick stats
+  // Stats
   const totalRevenue = orders.reduce((sum, ord) => sum + (ord.total || 0), 0);
   const totalBooksSold = orders.reduce((sum, ord) => sum + (ord.items?.length || 0), 0);
 
@@ -199,7 +143,7 @@ export function DeveloperPortal({
 
       {/* Top Admin Header */}
       <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-stone-800 shadow-xl px-4 sm:px-8 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-crypta-pink to-rose-700 flex items-center justify-center font-black text-white shadow-pink-glow">
@@ -209,10 +153,10 @@ export function DeveloperPortal({
               <div className="flex items-center gap-2">
                 <h1 className="text-lg sm:text-xl font-black text-white">لوحة تحكم المطور والمؤلف</h1>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-crypta-pink/20 text-crypta-pink border border-crypta-pink/40 font-mono font-bold">
-                  PORTAL
+                  سِـجِـلّ
                 </span>
               </div>
-              <p className="text-xs text-stone-400">إدارة ونشر القصص ومتابعة مبيعات متجر سِـجِـلّ</p>
+              <p className="text-xs text-stone-400">إدارة ونشر القصص ومتابعة مبيعات المتجر</p>
             </div>
           </div>
 
@@ -239,7 +183,7 @@ export function DeveloperPortal({
 
       {/* Sub-Nav Tabs */}
       <div className="bg-stone-950 border-b border-stone-850 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto py-2.5">
+        <div className="max-w-6xl mx-auto flex items-center gap-2 overflow-x-auto py-2.5">
           <button
             onClick={() => setActiveTab('publish')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition whitespace-nowrap ${
@@ -249,7 +193,7 @@ export function DeveloperPortal({
             }`}
           >
             <PlusCircle className="w-4 h-4" />
-            <span>نشر قصة / لغز جديد</span>
+            <span>رفع قضية جديدة (6 حقول)</span>
           </button>
 
           <button
@@ -278,272 +222,205 @@ export function DeveloperPortal({
         </div>
       </div>
 
-      {/* Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-8 py-8">
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-8 py-8">
         
-        {/* ================= TAB 1: PUBLISH NEW STORY ================= */}
+        {/* ================= TAB 1: PUBLISH CASE (EXACT 6 FIELDS) ================= */}
         {activeTab === 'publish' && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-3xl mx-auto">
             
-            <div className="mb-6">
+            <div className="mb-6 text-right">
               <h2 className="text-2xl font-black text-white flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-crypta-yellow" />
-                <span>نشر رواية / قضية جديدة في المتجر</span>
+                <PlusCircle className="w-6 h-6 text-crypta-pink" />
+                <span>صفحة رفع قضية جديدة</span>
               </h2>
               <p className="text-xs sm:text-sm text-stone-400 mt-1">
-                املأ تفاصيل القضية وسيتم نشرها فوراً في السحابة لجميع زوار المتجر مع إعداد حلها المشفر.
+                املأ الحقول التالية لنشر القضية مباشرة في المتجر وحفظها في قاعدة البيانات السحابية.
               </p>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="space-y-6">
+            <form onSubmit={handleFormSubmit} className="space-y-5 bg-stone-900/80 border border-stone-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
               
-              {/* Card 1: Basic Info */}
-              <div className="bg-stone-900/80 border border-stone-800 rounded-2xl p-5 sm:p-6 space-y-4">
-                <h3 className="text-sm font-bold text-crypta-yellow uppercase tracking-wider flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  <span>1. البيانات الأساسية للقصة</span>
-                </h3>
+              {/* 1. اسم القضية */}
+              <div>
+                <label className="block text-sm font-bold text-crypta-yellow mb-2">
+                  1. اسم القضية *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: لغز غرفة البرج المغلقة"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full bg-black border border-stone-700 focus:border-crypta-pink rounded-xl px-4 py-3 text-sm text-white placeholder-stone-600 focus:outline-none transition"
+                />
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      عنوان القصة / الكتاب *
-                    </label>
+              {/* 2. وصف مشوق */}
+              <div>
+                <label className="block text-sm font-bold text-crypta-yellow mb-2">
+                  2. وصف مشوق *
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="اكتب نبذة غامضة ومشوقة تشجع القارئ على خوض التحقيق وشراء القضية..."
+                  value={formData.synopsis}
+                  onChange={(e) => setFormData({ ...formData, synopsis: e.target.value })}
+                  className="w-full bg-black border border-stone-700 focus:border-crypta-pink rounded-xl p-4 text-sm text-white placeholder-stone-600 focus:outline-none leading-relaxed transition"
+                />
+              </div>
+
+              {/* 3. صورة للغلاف */}
+              <div>
+                <label className="block text-sm font-bold text-crypta-yellow mb-2">
+                  3. صورة للغلاف
+                </label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  {/* File Upload & URL Inputs */}
+                  <div className="space-y-3">
+                    {/* Device Upload */}
                     <input
-                      type="text"
-                      required
-                      placeholder="مثال: لغز غرفة البرج المغلقة"
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-crypta-pink focus:outline-none"
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="hidden"
+                      id="cover-file-upload"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      العنوان الفرعي
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="مثال: تحقيق مشفر في جريمة غامضة"
-                      value={formData.subtitle}
-                      onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-crypta-pink focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      رقم القضية / الكود
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.caseNumber}
-                      onChange={(e) => setFormData({ ...formData, caseNumber: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-crypta-pink focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      تصنيف القضية
-                    </label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-crypta-pink focus:outline-none"
+                    <label
+                      htmlFor="cover-file-upload"
+                      className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl border border-dashed border-stone-700 hover:border-crypta-pink bg-black hover:bg-stone-900 cursor-pointer text-xs font-bold text-stone-300 transition"
                     >
-                      <option value="جريمة غامضة">جريمة غامضة</option>
-                      <option value="سرقة محكمة">سرقة محكمة</option>
-                      <option value="لغز منطقي">لغز منطقي</option>
-                      <option value="قضية باردة">قضية باردة (Cold Case)</option>
-                      <option value="مؤامرة سرية">مؤامرة سرية</option>
-                    </select>
+                      <Upload className="w-4 h-4 text-crypta-pink" />
+                      <span>اختر صورة من جهازك</span>
+                    </label>
+
+                    {/* OR Direct URL */}
+                    <div className="relative">
+                      <input
+                        type="url"
+                        placeholder="أو الصق رابط صورة مباشر (URL)..."
+                        value={formData.coverImage.startsWith('data:') ? '' : formData.coverImage}
+                        onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
+                        className="w-full bg-black border border-stone-700 focus:border-crypta-pink rounded-xl px-4 py-2.5 text-xs text-white placeholder-stone-600 focus:outline-none font-mono transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Image Preview Box */}
+                  <div className="flex items-center justify-center">
+                    {formData.coverImage ? (
+                      <div className="relative w-28 h-36 rounded-xl overflow-hidden border-2 border-crypta-pink shadow-pink-glow">
+                        <img
+                          src={formData.coverImage}
+                          alt="معاينة الغلاف"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, coverImage: '' });
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                          className="absolute top-1 right-1 bg-black/80 text-rose-400 p-1 rounded-full text-[10px] hover:bg-black"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-28 h-36 rounded-xl border border-stone-800 bg-black flex flex-col items-center justify-center text-stone-600 text-center p-2">
+                        <ImageIcon className="w-6 h-6 mb-1" />
+                        <span className="text-[10px]">معاينة الغلاف</span>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      السعر (ر.س) *
-                    </label>
+              {/* 4. مستوى أو تصنيف القضية */}
+              <div>
+                <label className="block text-sm font-bold text-crypta-yellow mb-2">
+                  4. مستوى أو تصنيف القضية
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full bg-black border border-stone-700 focus:border-crypta-pink rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition"
+                  >
+                    <option value="سهل للمبتدئين">سهل (للمبتدئين)</option>
+                    <option value="متوسط">متوسط</option>
+                    <option value="متمرس">متمرس (محقق محترف)</option>
+                    <option value="معقد جداً">معقد جداً (خبير)</option>
+                    <option value="جريمة غامضة">جريمة غامضة</option>
+                    <option value="سرقة محكمة">سرقة محكمة</option>
+                    <option value="لغز ذكاء ومنطق">لغز ذكاء ومنطق</option>
+                    <option value="قضية باردة">قضية باردة (Cold Case)</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="أو اكتب تصنيفاً مخصصاً هنا..."
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full bg-black border border-stone-700 focus:border-crypta-pink rounded-xl px-4 py-3 text-sm text-white placeholder-stone-600 focus:outline-none transition"
+                  />
+                </div>
+              </div>
+
+              {/* 5 & 6: الأسعار */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {/* 5. السعر قبل إن وجد */}
+                <div>
+                  <label className="block text-sm font-bold text-stone-300 mb-2">
+                    5. السعر قبل إن وجد (اختياري)
+                  </label>
+                  <div className="relative">
                     <input
                       type="number"
-                      min="1"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-crypta-yellow focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      السعر قبل الخصم
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
+                      min="0"
+                      placeholder="مثال: 50"
                       value={formData.originalPrice}
                       onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-stone-400 font-mono focus:border-crypta-pink focus:outline-none"
+                      className="w-full bg-black border border-stone-700 focus:border-stone-500 rounded-xl px-4 py-3 text-sm text-stone-400 font-mono focus:outline-none transition"
                     />
+                    <span className="absolute left-3 top-3.5 text-xs text-stone-500 font-mono">ر.س</span>
                   </div>
+                  <span className="text-[11px] text-stone-500 mt-1 block">يظهر مشطوباً لإبراز الخصم للعميل</span>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      مستوى الصعوبة
-                    </label>
-                    <select
-                      value={formData.difficulty}
-                      onChange={(e) => setFormData({ ...formData, difficulty: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-crypta-pink focus:outline-none"
-                    >
-                      <option value="سهل">سهل (مبتدئ)</option>
-                      <option value="متوسط">متوسط</option>
-                      <option value="متمرس">متمرس (محقق)</option>
-                      <option value="معقد جداً">معقد جداً (خبير)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      عدد الصفحات
-                    </label>
+                {/* 6. السعر بعد */}
+                <div>
+                  <label className="block text-sm font-bold text-crypta-yellow mb-2">
+                    6. السعر بعد (سعر البيع) *
+                  </label>
+                  <div className="relative">
                     <input
                       type="number"
-                      min="10"
-                      value={formData.pages}
-                      onChange={(e) => setFormData({ ...formData, pages: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-crypta-pink focus:outline-none"
+                      required
+                      min="1"
+                      placeholder="مثال: 29"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      className="w-full bg-black border-2 border-crypta-yellow/80 focus:border-crypta-yellow rounded-xl px-4 py-3 text-base text-white font-mono font-bold focus:outline-none transition shadow-[0_0_15px_rgba(246,195,36,0.15)]"
                     />
+                    <span className="absolute left-3 top-3.5 text-xs text-crypta-yellow font-bold font-mono">ر.س</span>
                   </div>
-                </div>
-
-                {/* Cover Style Selector */}
-                <div className="pt-2">
-                  <label className="block text-xs font-bold text-stone-300 mb-2">
-                    نمط تصميم الغلاف (الخلفية والألوان):
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { id: 'noir-red', name: 'قرمزي جنائي (Crimson Noir)', border: 'border-rose-500' },
-                      { id: 'noir-gold', name: 'ذهبي كلاسيكي (Golden Noir)', border: 'border-amber-500' },
-                      { id: 'noir-cyan', name: 'أزرق تحقيقي (Cyan Thriller)', border: 'border-cyan-500' },
-                      { id: 'noir-purple', name: 'أرجواني غامض (Mystic Purple)', border: 'border-fuchsia-500' },
-                    ].map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, coverStyle: st.id })}
-                        className={`p-3 rounded-xl text-xs font-bold text-center border transition ${
-                          formData.coverStyle === st.id
-                            ? `${st.border} bg-stone-800 text-white shadow-lg`
-                            : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
-                        }`}
-                      >
-                        {st.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Card 2: Synopsis (What customer sees) */}
-              <div className="bg-stone-900/80 border border-stone-800 rounded-2xl p-5 sm:p-6 space-y-4">
-                <h3 className="text-sm font-bold text-crypta-yellow uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  <span>2. الملخص التشويقي (ما يظهر للعميل في المتجر قبل الشراء) *</span>
-                </h3>
-
-                <div>
-                  <textarea
-                    rows={4}
-                    required
-                    placeholder="اكتب نبذة غامضة ومشوقة عن الجريمة تحفز القارئ على شراء الملف وكشف اللغز..."
-                    value={formData.synopsis}
-                    onChange={(e) => setFormData({ ...formData, synopsis: e.target.value })}
-                    className="w-full bg-black border border-stone-700 rounded-xl p-4 text-sm text-white focus:border-crypta-pink focus:outline-none leading-relaxed"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-300 mb-1">
-                    الأدلة الجنائية الأولية (دليل في كل سطر):
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="1. دليل أول&#10;2. دليل ثاني&#10;3. دليل ثالث"
-                    value={formData.clues}
-                    onChange={(e) => setFormData({ ...formData, clues: e.target.value })}
-                    className="w-full bg-black border border-stone-700 rounded-xl p-3 text-xs text-stone-300 focus:border-crypta-pink focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Card 3: Secret Official Solution (Sealed until purchased) */}
-              <div className="bg-stone-900/80 border border-stone-800 rounded-2xl p-5 sm:p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
-                    🔒
-                    <span>3. الحل السري الرسمي (يُفتح للعميل فقط بعد الشراء في خزينة الحلول)</span>
-                  </h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono">
-                    محمي ومختوم
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      اسم الجاني الحقيقي
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="مثال: الخادم الشخصي (سليمان)"
-                      value={formData.culprit}
-                      onChange={(e) => setFormData({ ...formData, culprit: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-300 mb-1">
-                      الدافع الجنائي
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="مثال: الحصول على الوصية المخفية"
-                      value={formData.motive}
-                      onChange={(e) => setFormData({ ...formData, motive: e.target.value })}
-                      className="w-full bg-black border border-stone-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-300 mb-1">
-                    طريقة تنفيذ الجريمة وكيف يحلها المحقق:
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="اشرح بدقة كيفية فك اللغز وما هي الثغرة التي فضحت الجاني..."
-                    value={formData.method}
-                    onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-                    className="w-full bg-black border border-stone-700 rounded-xl p-3 text-sm text-white focus:border-rose-500 focus:outline-none"
-                  />
+                  <span className="text-[11px] text-stone-500 mt-1 block">المبلغ الفعلي الذي يدفعه العميل عند الشراء</span>
                 </div>
               </div>
 
               {/* Submit Button */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="pt-4">
                 <button
                   type="submit"
                   disabled={isPublishing}
-                  className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-crypta-pink to-rose-700 hover:from-rose-500 hover:to-crypta-pink text-white font-black text-sm shadow-pink-glow transition transform hover:scale-[1.02] disabled:opacity-50"
+                  className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-crypta-pink to-rose-700 hover:from-rose-500 hover:to-crypta-pink text-white font-black text-base shadow-pink-glow transition transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <PlusCircle className="w-5 h-5" />
-                  <span>{isPublishing ? 'جارٍ النشر والسحب إلى Firebase...' : 'نشر القصة في المتجر فوراً ✨'}</span>
+                  <span>{isPublishing ? 'جارٍ النشر والحفظ السحابي...' : 'نشر القضية في المتجر فوراً ✨'}</span>
                 </button>
               </div>
 
@@ -552,7 +429,7 @@ export function DeveloperPortal({
           </div>
         )}
 
-        {/* ================= TAB 2: MANAGE PUBLISHED STORIES ================= */}
+        {/* ================= TAB 2: MANAGE STORIES ================= */}
         {activeTab === 'manage' && (
           <div className="space-y-6">
             
@@ -567,7 +444,7 @@ export function DeveloperPortal({
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-crypta-pink text-white font-bold text-xs shadow-pink-glow self-start sm:self-auto"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>إضافة قصة جديدة</span>
+                <span>رفع قضية جديدة</span>
               </button>
             </div>
 
@@ -583,7 +460,7 @@ export function DeveloperPortal({
                         {item.caseNumber}
                       </span>
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-stone-800 text-stone-300 font-bold">
-                        {item.difficulty}
+                        {item.difficulty || item.category || 'قضية'}
                       </span>
                     </div>
 
@@ -680,7 +557,7 @@ export function DeveloperPortal({
                 <div className="p-12 text-center text-stone-400 space-y-2">
                   <ShoppingBag className="w-10 h-10 mx-auto text-stone-600" />
                   <p className="font-bold text-sm">لم يتم تسجيل أي طلب شراء حتى الآن</p>
-                  <p className="text-xs text-stone-500">عندما يقوم أي عميل بشراء قصة من المتجر، ستظهر فورا هنا مع تفاصيل الفاتورة.</p>
+                  <p className="text-xs text-stone-500">عندما يقوم أي عميل بشراء قصة من المتجر، ستظهر فوراً هنا مع تفاصيل الفاتورة.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
