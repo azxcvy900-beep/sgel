@@ -432,21 +432,24 @@ export function CaseDetailModal({
             )}
           </div>
 
-          {/* Action CTAs */}
+          {/* Action CTA - Exactly ONE unified action */}
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={handleDownloadPdf}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-stone-200 border border-white/10 text-xs font-bold transition"
-            >
-              <DownloadCloud className="w-4 h-4 text-amber-400" />
-              <span>تحميل ملف PDF</span>
-            </button>
-
             {isPurchased ? (
-              <div className="px-5 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
-                <Check className="w-4 h-4" />
-                <span>ضمن أرشيفك</span>
-              </div>
+              <button
+                onClick={handleDownloadPdf}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow-lg shadow-emerald-950/30"
+              >
+                <DownloadCloud className="w-4 h-4 text-emerald-400" />
+                <span>تحميل ملف القضية (ضمن أرشيفك)</span>
+              </button>
+            ) : Number(caseItem.price) === 0 ? (
+              <button
+                onClick={handleDownloadPdf}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-950/40 text-xs font-bold transition"
+              >
+                <DownloadCloud className="w-4 h-4 text-emerald-200" />
+                <span>احصل عليها مجاناً (تحميل فوري)</span>
+              </button>
             ) : (
               <button
                 onClick={() => {
@@ -456,8 +459,6 @@ export function CaseDetailModal({
                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-bold transition ${
                   isInCart
                     ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
-                    : Number(caseItem.price) === 0
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-950/40'
                     : 'bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white shadow-xl shadow-rose-950/40'
                 }`}
               >
@@ -465,11 +466,6 @@ export function CaseDetailModal({
                   <>
                     <Check className="w-4 h-4" />
                     <span>تمت الإضافة للسلة</span>
-                  </>
-                ) : Number(caseItem.price) === 0 ? (
-                  <>
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>احصل عليها مجاناً</span>
                   </>
                 ) : (
                   <>

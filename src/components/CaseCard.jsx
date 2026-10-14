@@ -116,46 +116,38 @@ export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurc
                 <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
                 <span>تحميل الملف</span>
               </button>
+            ) : Number(caseItem.price) === 0 ? (
+              <button
+                type="button"
+                onClick={() => onDirectDownload ? onDirectDownload(caseItem) : onAddToCart(caseItem)}
+                className="px-3.5 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-emerald-glow transition"
+                title="تحميل فوري مجاني"
+              >
+                <DownloadCloud className="w-3.5 h-3.5 text-emerald-200" />
+                <span>احصل عليها مجاناً</span>
+              </button>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onDirectDownload && onDirectDownload(caseItem)}
-                  className="p-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/25 text-amber-300 hover:text-amber-200 border border-amber-400/30 transition shadow"
-                  title="تحميل مباشر فوري بخطوة واحدة ⚡"
-                >
-                  <DownloadCloud className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onAddToCart(caseItem)}
-                  className={`px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${
-                    isInCart
-                      ? 'bg-crypta-yellow text-black font-black'
-                      : Number(caseItem.price) === 0
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-glow'
-                        : 'bg-gradient-to-r from-crypta-pink to-rose-700 hover:from-rose-500 hover:to-crypta-pink text-white shadow-pink-glow'
-                  }`}
-                >
-                  {isInCart ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>في السلة</span>
-                    </>
-                  ) : Number(caseItem.price) === 0 ? (
-                    <>
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>احصل عليها مجاناً</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>ضم للسلة</span>
-                    </>
-                  )}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => onAddToCart(caseItem)}
+                className={`px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${
+                  isInCart
+                    ? 'bg-crypta-yellow text-black font-black'
+                    : 'bg-gradient-to-r from-crypta-pink to-rose-700 hover:from-rose-500 hover:to-crypta-pink text-white shadow-pink-glow'
+                }`}
+              >
+                {isInCart ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>في السلة</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>ضم للسلة</span>
+                  </>
+                )}
+              </button>
             )}
           </div>
 
