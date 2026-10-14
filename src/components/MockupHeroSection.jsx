@@ -117,7 +117,7 @@ export function MockupHeroSection({
                           : 'bg-gradient-to-r from-crypta-pink to-rose-700 text-white hover:from-rose-500 hover:to-crypta-pink group-hover:scale-105'
                       }`}
                     >
-                      {c.isLocked ? 'قريباً' : c.title.replace('قضية ', '').replace('لغز ', '')}
+                      {c.isLocked ? 'قريباً' : (c.title || 'قضية').replace('قضية ', '').replace('لغز ', '')}
                     </button>
                   </div>
                 </div>

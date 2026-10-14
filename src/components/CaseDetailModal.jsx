@@ -129,7 +129,7 @@ export function CaseDetailModal({
               }`}
             >
               <UserCheck className="w-4 h-4" />
-              <span>المشتبه بهم ({caseItem.suspects.length})</span>
+              <span>المشتبه بهم ({caseItem.suspects?.length || 0})</span>
             </button>
 
             <button
@@ -141,7 +141,7 @@ export function CaseDetailModal({
               }`}
             >
               <Lightbulb className="w-4 h-4 text-amber-400" />
-              <span>نظام التلميحات ({caseItem.hints.length})</span>
+              <span>نظام التلميحات ({caseItem.hints?.length || 0})</span>
             </button>
 
             <button
@@ -173,13 +173,13 @@ export function CaseDetailModal({
 
               <div>
                 <h4 className="text-sm font-bold text-white mb-3">
-                  الأحراز والأدلة الجنائية المادية ({caseItem.evidenceList.length})
+                  الأحراز والأدلة الجنائية المادية ({caseItem.evidenceList?.length || 0})
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {caseItem.evidenceList.map((ev, idx) => (
+                  {(caseItem.evidenceList || []).map((ev, idx) => (
                     <div 
-                      key={ev.id}
+                      key={ev.id || idx}
                       className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-amber-400/30 transition"
                     >
                       <div className="flex items-center gap-2 text-amber-300 font-bold text-xs sm:text-sm mb-1.5">
@@ -202,7 +202,7 @@ export function CaseDetailModal({
           {/* Tab 2: Suspects */}
           {activeTab === 'suspects' && (
             <div className="space-y-3 animate-fadeIn">
-              {caseItem.suspects.map((s, idx) => (
+              {(caseItem.suspects || []).map((s, idx) => (
                 <div 
                   key={idx}
                   className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06]"
@@ -253,7 +253,7 @@ export function CaseDetailModal({
               </div>
 
               <div className="space-y-3">
-                {caseItem.hints.map((h) => {
+                {(caseItem.hints || []).map((h) => {
                   const isRevealed = unlockedHints[h.level];
 
                   return (
@@ -369,28 +369,28 @@ export function CaseDetailModal({
                   <div>
                     <div className="text-xs text-stone-400 mb-1">الجاني المدان:</div>
                     <div className="text-xl font-bold text-rose-400 font-display">
-                      {caseItem.solution.culprit}
+                      {caseItem.solution?.culprit || 'مُسجل في تقرير الحل'}
                     </div>
                   </div>
 
                   <div>
                     <div className="text-xs text-stone-400 mb-1">الدافع:</div>
                     <div className="text-sm text-stone-200">
-                      {caseItem.solution.motive}
+                      {caseItem.solution?.motive || 'دافع جنائي مشفر'}
                     </div>
                   </div>
 
                   <div>
                     <div className="text-xs text-stone-400 mb-1">طريقة التنفيذ:</div>
                     <div className="text-xs sm:text-sm text-stone-200 leading-relaxed bg-white/[0.02] p-4 rounded-xl border border-white/[0.05]">
-                      {caseItem.solution.method}
+                      {caseItem.solution?.method || caseItem.synopsis || 'تحليل جنائي'}
                     </div>
                   </div>
 
                   <div>
                     <div className="text-xs text-stone-400 mb-2">سلسلة الاستنتاج:</div>
                     <div className="space-y-2">
-                      {caseItem.solution.deductionSteps.map((step, idx) => (
+                      {(caseItem.solution?.deductionSteps || ['1. فحص مسرح الحادثة', '2. مطابقة الإفادات']).map((step, idx) => (
                         <div key={idx} className="p-3 rounded-lg bg-white/[0.02] text-xs text-stone-300 border border-white/[0.04]">
                           {step}
                         </div>

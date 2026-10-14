@@ -59,15 +59,15 @@ export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurc
         {/* Specs Bar */}
         <div className="grid grid-cols-3 gap-2 py-2 px-2.5 rounded-xl bg-black border border-stone-850 text-[10px] font-mono text-stone-400 text-center">
           <div>
-            <span className="text-crypta-yellow font-bold block">{caseItem.evidenceList.length}</span>
+            <span className="text-crypta-yellow font-bold block">{caseItem.evidenceList?.length || 1}</span>
             <span>أحراز</span>
           </div>
           <div>
-            <span className="text-white font-bold block">{caseItem.pages} ص</span>
+            <span className="text-white font-bold block">{caseItem.pages || 35} ص</span>
             <span>كتاب PDF</span>
           </div>
           <div>
-            <span className="text-crypta-pink font-bold block">{caseItem.difficulty}</span>
+            <span className="text-crypta-pink font-bold block">{caseItem.difficulty || caseItem.category || 'متمرس'}</span>
             <span>الصعوبة</span>
           </div>
         </div>

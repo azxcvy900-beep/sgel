@@ -17,10 +17,49 @@ import { Footer } from './components/Footer';
 import { INITIAL_CASES, DETECTIVE_RANKS } from './data/casesData';
 import { subscribeToCases, addCaseToFirebase, deleteCaseFromFirebase, saveOrderToFirebase } from './firebase/db';
 
+function normalizeCase(c) {
+  if (!c || typeof c !== 'object') return null;
+  return {
+    ...c,
+    id: c.id || `case-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    title: c.title || 'قضية جنائية',
+    caseNumber: c.caseNumber || `CASE #${String(c.id || '001').slice(0, 5)}-س`,
+    subtitle: c.subtitle || c.category || 'ملف تحقيق جنائي',
+    synopsis: c.synopsis || 'ملف قضية جنائية غامضة بانتظار فك طلاسمها.',
+    difficulty: c.difficulty || c.category || 'متمرس',
+    category: c.category || c.difficulty || 'متمرس',
+    coverImage: c.coverImage || '/detective_silhouette.jpg',
+    originalPrice: c.originalPrice ? Number(c.originalPrice) : null,
+    price: typeof c.price === 'number' ? c.price : Number(c.price) || 29,
+    rating: c.rating || 5.0,
+    reviewsCount: c.reviewsCount || 1,
+    pages: c.pages || 38,
+    fileSize: c.fileSize || '4.8 MB',
+    classification: c.classification || 'سري للغاية',
+    estimatedSolveTime: c.estimatedSolveTime || '45-60 دقيقة',
+    evidenceList: Array.isArray(c.evidenceList) && c.evidenceList.length > 0 
+      ? c.evidenceList 
+      : [{ id: 'ev-1', title: 'مسرح الواقعة', description: 'الأدلة والقرائن الجنائية المرفقة في ملف القضية.' }],
+    suspects: Array.isArray(c.suspects) && c.suspects.length > 0 
+      ? c.suspects 
+      : [{ name: 'المشتبه به الرئيسي', role: 'طرف في الواقعة', suspicionScore: 70, alibi: 'قيد التحري', motive: 'دافع جنائي غامض' }],
+    hints: Array.isArray(c.hints) && c.hints.length > 0 
+      ? c.hints 
+      : [{ level: 1, title: 'تلميح المحقق', hint: 'دقق في تسلسل الأحداث والأدلة المادية في ملف القضية.' }],
+    tags: Array.isArray(c.tags) ? c.tags : [c.category || 'تحقيق', 'غموض'].filter(Boolean),
+    solution: c.solution && typeof c.solution === 'object' ? c.solution : {
+      culprit: 'مُسجل في تقرير الحل الختامي',
+      motive: 'دافع جنائي مشفر',
+      method: c.synopsis || 'تحليل جنائي متعمق',
+      deductionSteps: ['1. فحص مسرح الحادثة بدقة', '2. مطابقة الإفادات وإثبات الإدانة']
+    }
+  };
+}
+
 export function App() {
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(true);
   const [currentPortal, setCurrentPortal] = useState('store'); // 'store' | 'developer'
-  const [cases, setCases] = useState(INITIAL_CASES);
+  const [cases, setCases] = useState(() => INITIAL_CASES.map(normalizeCase).filter(Boolean));
   const [cart, setCart] = useState([]);
   const [purchasedCases, setPurchasedCases] = useState([]);
   const [unlockedSolutions, setUnlockedSolutions] = useState([]);
@@ -53,7 +92,12 @@ export function App() {
   useEffect(() => {
     try {
       const savedCases = localStorage.getItem('sijill_cases_v3');
-      if (savedCases) setCases(JSON.parse(savedCases));
+      if (savedCases) {
+        const parsed = JSON.parse(savedCases);
+        if (Array.isArray(parsed)) {
+          setCases(parsed.map(normalizeCase).filter(Boolean));
+        }
+      }
 
       const savedCart = localStorage.getItem('sijill_cart_v3');
       if (savedCart) setCart(JSON.parse(savedCart));
@@ -77,7 +121,7 @@ export function App() {
     const unsubscribe = subscribeToCases(
       (remoteCases) => {
         if (remoteCases && remoteCases.length > 0) {
-          setCases(remoteCases);
+          setCases(remoteCases.map(normalizeCase).filter(Boolean));
           setIsFirebaseConnected(true);
         }
       },
@@ -187,18 +231,19 @@ export function App() {
 
   // Admin add case handler (with Firebase sync)
   const handleAddCase = async (newCase) => {
-    setCases([newCase, ...cases]);
+    const safeCase = normalizeCase(newCase);
+    setCases(prev => [safeCase, ...prev]);
     try {
-      await addCaseToFirebase(newCase);
+      await addCaseToFirebase(safeCase);
     } catch (err) {
       console.warn("Could not save case to Firebase:", err);
     }
-    showToast(`تم نشر كتاب "${newCase.title}" في المتجر بنجاح ✨`);
+    showToast(`تم نشر كتاب "${safeCase.title}" في المتجر بنجاح ✨`);
   };
 
   // Admin delete case handler (with Firebase sync)
   const handleDeleteCase = async (caseId) => {
-    setCases(cases.filter(c => c.id !== caseId));
+    setCases(cases.filter(c => c && c.id !== caseId));
     try {
       await deleteCaseFromFirebase(caseId);
       showToast('تم حذف القضية من المتجر وقاعدة البيانات بنجاح 🗑️');
@@ -209,21 +254,28 @@ export function App() {
 
   // Available tags collection
   const allTags = Array.from(
-    new Set(cases.flatMap(c => c.tags || []))
+    new Set(cases.flatMap(c => (c && Array.isArray(c.tags)) ? c.tags : []))
   );
 
   // Filtered cases list
   const filteredCases = cases.filter(item => {
+    if (!item) return false;
+    const itemTitle = item.title ? String(item.title).toLowerCase() : '';
+    const itemNumber = item.caseNumber ? String(item.caseNumber).toLowerCase() : '';
+    const itemSynopsis = item.synopsis ? String(item.synopsis).toLowerCase() : '';
+    const query = (searchQuery || '').toLowerCase().trim();
+
     const matchesSearch = 
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.caseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.synopsis && item.synopsis.toLowerCase().includes(searchQuery.toLowerCase()));
+      !query ||
+      itemTitle.includes(query) ||
+      itemNumber.includes(query) ||
+      itemSynopsis.includes(query);
 
     const matchesDifficulty = 
       selectedDifficulty === 'all' || item.difficulty === selectedDifficulty;
 
     const matchesTag = 
-      selectedTag === 'all' || (item.tags && item.tags.includes(selectedTag));
+      selectedTag === 'all' || (Array.isArray(item.tags) && item.tags.includes(selectedTag));
 
     return matchesSearch && matchesDifficulty && matchesTag;
   });

@@ -126,6 +126,21 @@ export function DeveloperPortal({
       fileUrl: formData.fileUrl?.trim() || '',
       pages: 38,
       classification: 'سري للغاية',
+      estimatedSolveTime: '45-60 دقيقة',
+      coverTheme: {
+        gradient: 'from-[#1e1022] via-[#120914] to-[#070508]',
+        accent: 'text-amber-400',
+        borderAccent: 'border-amber-500/30',
+        symbol: '🔍',
+        categoryBadge: formData.category
+      },
+      evidenceList: [
+        { id: `ev-${Date.now()}-1`, title: 'مسرح الواقعة', description: 'الأدلة والقرائن المادية المرفقة في ملف القضية.' },
+        { id: `ev-${Date.now()}-2`, title: 'تقرير المعاينة الجنائية', description: formData.synopsis.trim() || 'فحص أولي لمسرح الحادثة.' }
+      ],
+      suspects: [
+        { name: 'المشتبه به الرئيسي', role: 'شخصية مرتبطة بالواقعة', suspicionScore: 75, alibi: 'قيد التحري والتحقيق', motive: 'دافع جنائي غامض' }
+      ],
       hints: [
         { level: 1, title: 'تلميح المحقق', hint: 'دقق في تسلسل الأحداث والأدلة المادية في ملف القضية.' }
       ],
@@ -581,15 +596,15 @@ export function DeveloperPortal({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {cases.map((item) => (
+              {cases.filter(Boolean).map((item) => (
                 <div 
-                  key={item.id}
+                  key={item.id || Math.random()}
                   className="bg-stone-900/80 border border-stone-800 hover:border-stone-700 rounded-2xl p-5 flex flex-col justify-between transition group space-y-4"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-mono font-bold text-crypta-pink">
-                        {item.caseNumber}
+                        {item.caseNumber || 'CASE #---'}
                       </span>
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-stone-800 text-stone-300 font-bold">
                         {item.difficulty || item.category || 'قضية'}
@@ -597,10 +612,10 @@ export function DeveloperPortal({
                     </div>
 
                     <h3 className="text-base font-black text-white group-hover:text-crypta-yellow transition line-clamp-1">
-                      {item.title}
+                      {item.title || 'قضية جنائية'}
                     </h3>
                     <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                      {item.synopsis}
+                      {item.synopsis || 'ملف تحقيق'}
                     </p>
 
                     {/* Attached digital file indicator */}
