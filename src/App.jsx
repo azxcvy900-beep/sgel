@@ -249,6 +249,18 @@ export function App() {
     showToast(`تم نشر كتاب "${safeCase.title}" في المتجر بنجاح ✨`);
   };
 
+  // Admin update case handler (with Firebase sync)
+  const handleUpdateCase = async (updatedCase) => {
+    const safeCase = normalizeCase(updatedCase);
+    setCases(prev => prev.map(c => c && c.id === safeCase.id ? safeCase : c));
+    try {
+      await addCaseToFirebase(safeCase);
+    } catch (err) {
+      console.warn("Could not update case in Firebase:", err);
+    }
+    showToast(`تم حفظ تعديلات "${safeCase.title}" في السحابة والمتجر بنجاح ✨`);
+  };
+
   // Admin delete case handler (with Firebase sync)
   const handleDeleteCase = async (caseId) => {
     setCases(cases.filter(c => c && c.id !== caseId));
@@ -294,6 +306,7 @@ export function App() {
       <DeveloperPortal
         cases={cases}
         onAddCase={handleAddCase}
+        onUpdateCase={handleUpdateCase}
         onDeleteCase={handleDeleteCase}
         onSwitchToStore={() => setCurrentPortal('store')}
         isFirebaseConnected={isFirebaseConnected}

@@ -15,14 +15,17 @@ import {
   FileArchive,
   Link as LinkIcon,
   Download,
-  AlertCircle
+  AlertCircle,
+  Edit
 } from 'lucide-react';
 import { subscribeToOrders } from '../firebase/db';
 import { downloadCaseFile } from '../utils/pdfGenerator';
+import { EditCaseModal } from './EditCaseModal';
 
 export function DeveloperPortal({ 
   cases, 
   onAddCase, 
+  onUpdateCase,
   onDeleteCase, 
   onSwitchToStore,
   isFirebaseConnected 
@@ -30,6 +33,7 @@ export function DeveloperPortal({
   const [activeTab, setActiveTab] = useState('publish'); // 'publish' | 'manage' | 'orders'
   const [orders, setOrders] = useState([]);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [editingCase, setEditingCase] = useState(null);
   const [successToast, setSuccessToast] = useState(null);
   const fileInputRef = useRef(null);
   const caseFileInputRef = useRef(null);
@@ -658,18 +662,33 @@ export function DeveloperPortal({
                       )}
                     </div>
 
-                    <button
-                      onClick={() => {
-                        if (confirm(`هل أنت متأكد من حذف قصة "${item.title}" من المتجر وقاعدة البيانات؟`)) {
-                          onDeleteCase(item.id);
-                          notify(`تم حذف قصة "${item.title}" بنجاح.`);
-                        }
-                      }}
-                      className="p-2 rounded-xl text-stone-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
-                      title="حذف القصة"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Edit Button */}
+                      <button
+                        type="button"
+                        onClick={() => setEditingCase(item)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 text-xs font-bold transition shadow-sm"
+                        title="تعديل بيانات القصة والملفات والأسعار"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>تعديل</span>
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`هل أنت متأكد من حذف قصة "${item.title}" من المتجر وقاعدة البيانات؟`)) {
+                            onDeleteCase(item.id);
+                            notify(`تم حذف قصة "${item.title}" بنجاح.`);
+                          }
+                        }}
+                        className="p-2 rounded-xl text-stone-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                        title="حذف القصة"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -787,6 +806,21 @@ export function DeveloperPortal({
         )}
 
       </main>
+
+      {/* Edit Case Modal */}
+      {editingCase && (
+        <EditCaseModal
+          caseItem={editingCase}
+          isOpen={Boolean(editingCase)}
+          onClose={() => setEditingCase(null)}
+          onSave={async (updatedCase) => {
+            if (onUpdateCase) {
+              await onUpdateCase(updatedCase);
+            }
+            notify(`تم حفظ تعديلات قصة "${updatedCase.title}" في السحابة والمتجر بنجاح! ✨`);
+          }}
+        />
+      )}
 
     </div>
   );
