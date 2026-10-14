@@ -50,6 +50,7 @@ export function DeveloperPortal({
     fileData: '',       // بيانات الملف (Data URL)
     fileSize: '',       // حجم الملف
     fileUrl: '',        // أو رابط تحميل سحابي خارجي
+    payhipUrl: '',      // 8. رابط منتج Payhip للدفع الإلكتروني المباشر
   });
 
   // Subscribe to live orders from Firebase
@@ -128,6 +129,7 @@ export function DeveloperPortal({
       fileName: formData.fileName || '',
       fileData: formData.fileData || '',
       fileUrl: formData.fileUrl?.trim() || '',
+      payhipUrl: formData.payhipUrl?.trim() || '',
       pages: 38,
       classification: 'سري للغاية',
       estimatedSolveTime: '45-60 دقيقة',
@@ -562,6 +564,34 @@ export function DeveloperPortal({
                 <div className="text-[11px] text-stone-500 flex items-center gap-1.5 pt-1">
                   <span className="text-crypta-pink font-bold">⚡ ملاحظة:</span>
                   <span>إذا لم تقم برفع ملف، سيتم تلقائياً إنشاء وتنزيل ملف تحقيق PDF جنائي تفاعلي ومصمم خصيصاً للقضية.</span>
+                </div>
+              </div>
+
+              {/* 8. ربط الدفع الإلكتروني عبر Payhip (اختياري) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-black/80 border border-amber-500/30 space-y-3.5 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-bold text-amber-300 flex items-center gap-2">
+                    <span className="text-base">💳</span>
+                    <span>8. رابط منتج Payhip للدفع المباشر (اختياري)</span>
+                  </label>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/30 font-bold">
+                    بوابة الدفع
+                  </span>
+                </div>
+                <p className="text-xs text-stone-300 leading-relaxed">
+                  إذا رفعت هذه القضية في حسابك بـ Payhip، الصق رابطها هنا (مثل: <code className="text-amber-300 bg-amber-400/10 px-1.5 py-0.5 rounded font-mono">https://payhip.com/b/XXXX</code>). عند نقر العميل على الشراء ستنفتح له نافذة الدفع الفورية من Payhip.
+                </p>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-stone-500">
+                    <LinkIcon className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <input
+                    type="url"
+                    placeholder="https://payhip.com/b/XXXX"
+                    value={formData.payhipUrl}
+                    onChange={(e) => setFormData({ ...formData, payhipUrl: e.target.value })}
+                    className="w-full bg-stone-900/90 border border-stone-700 focus:border-amber-400 rounded-xl pr-10 pl-4 py-3.5 text-xs text-white placeholder-stone-500 focus:outline-none font-mono transition"
+                  />
                 </div>
               </div>
 

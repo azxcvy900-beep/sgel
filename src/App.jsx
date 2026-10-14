@@ -62,7 +62,8 @@ function normalizeCase(c) {
       motive: 'دافع جنائي مشفر',
       method: c.synopsis || 'تحليل جنائي متعمق',
       deductionSteps: ['1. فحص مسرح الحادثة بدقة', '2. مطابقة الإفادات وإثبات الإدانة']
-    }
+    },
+    payhipUrl: c.payhipUrl || ''
   };
 }
 

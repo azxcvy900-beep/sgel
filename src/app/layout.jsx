@@ -15,6 +15,7 @@ export default function RootLayout({ children }) {
           href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cairo:wght@300;400;600;700;900&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap"
           rel="stylesheet"
         />
+        <script type="text/javascript" src="https://payhip.com/payhip.js" async></script>
       </head>
       <body className="bg-black text-white antialiased font-sans selection:bg-[#ec1368] selection:text-white">
         {children}

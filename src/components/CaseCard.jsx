@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingBag, Check, Star, Eye, DownloadCloud } from 'lucide-react';
 import { BookShelfCover } from './BookShelfCover';
+import { openPayhipCheckout } from '../utils/payhip';
 
 export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurchased, onDirectDownload }) {
   if (caseItem.isLocked) {
@@ -125,6 +126,16 @@ export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurc
               >
                 <DownloadCloud className="w-3.5 h-3.5 text-emerald-200" />
                 <span>احصل عليها مجاناً</span>
+              </button>
+            ) : caseItem.payhipUrl ? (
+              <button
+                type="button"
+                onClick={() => openPayhipCheckout(caseItem.payhipUrl)}
+                className="px-3.5 py-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-dark-950 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-amber-950/40 transition"
+                title="شراء ودفع فوري عبر Payhip"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>شراء الآن ({Number(caseItem.price).toFixed(Number(caseItem.price) % 1 === 0 ? 0 : 2)} ر.س)</span>
               </button>
             ) : (
               <button

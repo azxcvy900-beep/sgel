@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { generateCasePdf, downloadCaseFile } from '../utils/pdfGenerator';
 import { BookCover } from './BookCover';
+import { openPayhipCheckout } from '../utils/payhip';
 
 export function CaseDetailModal({ 
   caseItem, 
@@ -449,6 +450,14 @@ export function CaseDetailModal({
               >
                 <DownloadCloud className="w-4 h-4 text-emerald-200" />
                 <span>احصل عليها مجاناً (تحميل فوري)</span>
+              </button>
+            ) : caseItem.payhipUrl ? (
+              <button
+                onClick={() => openPayhipCheckout(caseItem.payhipUrl)}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-dark-950 font-black shadow-xl shadow-amber-950/40 text-xs transition"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>شراء الآن عبر Payhip ({Number(caseItem.price).toFixed(Number(caseItem.price) % 1 === 0 ? 0 : 2)} ر.س)</span>
               </button>
             ) : (
               <button
