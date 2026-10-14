@@ -90,46 +90,56 @@ export function MockupHeroSection({
           </div>
 
           {/* Books Shelf Container */}
-          <div className="flex lg:grid lg:grid-cols-10 gap-3 sm:gap-3.5 overflow-x-auto pb-4 pt-1 snap-x scrollbar-none px-1">
-            {cases.slice(0, 10).map((c) => {
-              return (
-                <div 
-                  key={c.id}
-                  onClick={() => {
-                    if (!c.isLocked) {
-                      onSelectCase(c);
-                    }
-                  }}
-                  className="group cursor-pointer flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-2 min-w-[135px] sm:min-w-[155px] lg:min-w-0 flex-1 snap-start shrink-0 lg:shrink"
-                >
-                  {/* Book Cover */}
-                  <div className="rounded-xl transition-all group-hover:ring-2 group-hover:ring-crypta-yellow group-hover:shadow-yellow-glow">
-                    <BookShelfCover caseItem={c} />
-                  </div>
+          {cases.length === 0 ? (
+            <div className="py-12 text-center space-y-2 border border-dashed border-stone-800 rounded-2xl p-6 bg-stone-900/30">
+              <span className="text-3xl">📚</span>
+              <p className="text-stone-300 font-bold text-sm">رف الكتب بانتظار قضاياك المنشورة</p>
+              <p className="text-stone-500 text-xs">ارفع قصتك الأولى من لوحة المطور لتظهر مباشرة على الرف.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-4 sm:gap-5 overflow-x-auto pb-4 pt-1 snap-x scrollbar-none px-1">
+                {cases.map((c) => (
+                  <div 
+                    key={c.id}
+                    onClick={() => {
+                      if (!c.isLocked) {
+                        onSelectCase(c);
+                      }
+                    }}
+                    className="group cursor-pointer flex flex-col justify-between transition-all duration-300 transform hover:-translate-y-2 w-36 sm:w-44 shrink-0 snap-start"
+                  >
+                    {/* Book Cover */}
+                    <div className="rounded-xl transition-all group-hover:ring-2 group-hover:ring-crypta-yellow group-hover:shadow-yellow-glow">
+                      <BookShelfCover caseItem={c} />
+                    </div>
 
-                  {/* Pink Pill Button Below Each Book */}
-                  <div className="mt-2.5">
-                    <button
-                      type="button"
-                      className={`w-full py-1.5 px-2 rounded-full text-[10px] sm:text-xs font-bold text-center transition truncate shadow-md ${
-                        c.isLocked
-                          ? 'bg-gradient-to-r from-stone-800 to-stone-900 text-stone-400 border border-stone-700'
-                          : 'bg-gradient-to-r from-crypta-pink to-rose-700 text-white hover:from-rose-500 hover:to-crypta-pink group-hover:scale-105'
-                      }`}
-                    >
-                      {c.isLocked ? 'قريباً' : (c.title || 'قضية').replace('قضية ', '').replace('لغز ', '')}
-                    </button>
+                    {/* Pink Pill Button Below Each Book */}
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        className={`w-full py-1.5 px-2 rounded-full text-[10px] sm:text-xs font-bold text-center transition truncate shadow-md ${
+                          c.isLocked
+                            ? 'bg-gradient-to-r from-stone-800 to-stone-900 text-stone-400 border border-stone-700'
+                            : 'bg-gradient-to-r from-crypta-pink to-rose-700 text-white hover:from-rose-500 hover:to-crypta-pink group-hover:scale-105'
+                        }`}
+                      >
+                        {c.isLocked ? 'قريباً' : (c.title || 'قضية').replace('قضية ', '').replace('لغز ', '')}
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Swipe indicator if multiple books */}
+              {cases.length > 3 && (
+                <div className="lg:hidden flex items-center justify-center gap-2 text-[11px] text-stone-400 font-mono pt-1">
+                  <span>اسحب لتصفح باقي القصص على الرف</span>
+                  <span className="text-crypta-pink animate-pulse text-sm">←</span>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Swipe indicator for Mobile & iPad */}
-          <div className="lg:hidden flex items-center justify-center gap-2 text-[11px] text-stone-400 font-mono pt-1">
-            <span>اسحب لتصفح باقي القصص على الرف</span>
-            <span className="text-crypta-pink animate-pulse text-sm">←</span>
-          </div>
+              )}
+            </>
+          )}
 
         </div>
 

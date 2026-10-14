@@ -17,8 +17,16 @@ import { Footer } from './components/Footer';
 import { INITIAL_CASES, DETECTIVE_RANKS } from './data/casesData';
 import { subscribeToCases, addCaseToFirebase, deleteCaseFromFirebase, saveOrderToFirebase } from './firebase/db';
 
+const DEMO_CASE_IDS = [
+  'case-01', 'case-02', 'case-03', 'case-04', 'case-05',
+  'case-06', 'case-07', 'case-08', 'case-09', 'case-10',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+];
+
 function normalizeCase(c) {
   if (!c || typeof c !== 'object') return null;
+  // Automatically filter out and discard previous test/demo cases
+  if (DEMO_CASE_IDS.includes(String(c.id))) return null;
   return {
     ...c,
     id: c.id || `case-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -373,18 +381,26 @@ export function App() {
           />
 
           {/* Cases Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-            {filteredCases.map((caseItem) => (
-              <CaseCard
-                key={caseItem.id}
-                caseItem={caseItem}
-                onSelectCase={(item) => setSelectedCase(item)}
-                onAddToCart={handleAddToCart}
-                isInCart={cart.some(item => item.id === caseItem.id)}
-                isPurchased={purchasedCases.some(item => item.id === caseItem.id)}
-              />
-            ))}
-          </div>
+          {filteredCases.length === 0 ? (
+            <div className="py-16 text-center space-y-3 bg-stone-900/20 border border-stone-850 rounded-2xl p-8">
+              <span className="text-4xl">📂</span>
+              <p className="text-stone-300 font-bold text-base">لا توجد قضايا معروضة حالياً</p>
+              <p className="text-xs text-stone-500">قم برفع ونشر قضاياك من لوحة تحكم المطور لتظهر في الكتالوج.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
+              {filteredCases.map((caseItem) => (
+                <CaseCard
+                  key={caseItem.id}
+                  caseItem={caseItem}
+                  onSelectCase={(item) => setSelectedCase(item)}
+                  onAddToCart={handleAddToCart}
+                  isInCart={cart.some(item => item.id === caseItem.id)}
+                  isPurchased={purchasedCases.some(item => item.id === caseItem.id)}
+                />
+              ))}
+            </div>
+          )}
 
         </div>
       </main>
