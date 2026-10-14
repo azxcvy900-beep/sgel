@@ -12,6 +12,7 @@ import { SolutionVaultModal } from './components/SolutionVaultModal';
 import { DetectiveProfileModal } from './components/DetectiveProfileModal';
 import { AdminCaseManager } from './components/AdminCaseManager';
 import { DeveloperPortal } from './components/DeveloperPortal';
+import { BackgroundMagnifier } from './components/BackgroundMagnifier';
 import { Footer } from './components/Footer';
 import { INITIAL_CASES, DETECTIVE_RANKS } from './data/casesData';
 import { subscribeToCases, addCaseToFirebase, deleteCaseFromFirebase, saveOrderToFirebase } from './firebase/db';
@@ -243,6 +244,9 @@ export function App() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-crypta-pink selection:text-white relative">
       
+      {/* Roaming Detective Magnifying Glass Background Animation */}
+      <BackgroundMagnifier />
+
       {/* Ambient Detective Silhouette Background Watermark with subtle contrast */}
       <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden">
         <img
@@ -283,7 +287,7 @@ export function App() {
 
 
       {/* Detailed Cases Catalog Section */}
-      <main id="cases-catalog" className="flex-1 py-16 bg-black">
+      <main id="cases-catalog" className="flex-1 py-16 relative z-10 bg-transparent">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Section Header */}

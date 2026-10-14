@@ -6,15 +6,8 @@ export function MockupHeroSection({
   onSelectCase 
 }) {
   return (
-    <div className="relative bg-black text-white overflow-hidden pt-6 pb-10 sm:pt-8 sm:pb-12 border-b border-stone-850">
+    <div className="relative bg-transparent text-white overflow-hidden pt-6 pb-10 sm:pt-8 sm:pb-12 border-b border-stone-850">
       
-      {/* Background Watermark: Giant Outlined Magnifying Glass */}
-      <div className="absolute -bottom-10 -left-10 w-72 sm:w-96 h-72 sm:h-96 opacity-10 pointer-events-none">
-        <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full text-stone-400 stroke-current">
-          <circle cx="85" cy="85" r="55" strokeWidth="12" />
-          <line x1="125" y1="125" x2="185" y2="185" strokeWidth="16" strokeLinecap="round" />
-        </svg>
-      </div>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-8 sm:space-y-10">
         
