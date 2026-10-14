@@ -16,6 +16,8 @@ import { BackgroundMagnifier } from './components/BackgroundMagnifier';
 import { Footer } from './components/Footer';
 import { INITIAL_CASES, DETECTIVE_RANKS } from './data/casesData';
 import { subscribeToCases, addCaseToFirebase, deleteCaseFromFirebase, saveOrderToFirebase } from './firebase/db';
+import confetti from 'canvas-confetti';
+import { downloadCaseFile } from './utils/pdfGenerator';
 
 const DEMO_CASE_IDS = [
   'case-01', 'case-02', 'case-03', 'case-04', 'case-05',
@@ -192,7 +194,22 @@ export function App() {
     } else {
       setCart([...cart, caseItem]);
       showToast(`تمت إضافة "${caseItem.title}" إلى السلة 📚`);
+      setIsCartOpen(true); // Open cart drawer immediately
     }
+  };
+
+  const handleDirectDownloadCase = (caseItem) => {
+    downloadCaseFile(caseItem);
+    if (!purchasedCases.some(item => item.id === caseItem.id)) {
+      setPurchasedCases(prev => [caseItem, ...prev]);
+    }
+    showToast(`بدأ تحميل "${caseItem.title}" وتم إيداعها في أرشيفك 📥`);
+    confetti({
+      particleCount: 70,
+      spread: 60,
+      origin: { y: 0.6 },
+      colors: ['#f43f5e', '#fbbf24', '#34d399', '#ffffff']
+    });
   };
 
   const handleRemoveFromCart = (caseId) => {
@@ -410,6 +427,7 @@ export function App() {
                   onAddToCart={handleAddToCart}
                   isInCart={cart.some(item => item.id === caseItem.id)}
                   isPurchased={purchasedCases.some(item => item.id === caseItem.id)}
+                  onDirectDownload={handleDirectDownloadCase}
                 />
               ))}
             </div>
@@ -427,6 +445,7 @@ export function App() {
           isInCart={cart.some(item => item.id === selectedCase.id)}
           isPurchased={purchasedCases.some(item => item.id === selectedCase.id)}
           onUnlockSolution={handleUnlockSolution}
+          onDirectDownload={handleDirectDownloadCase}
         />
       )}
 
@@ -442,6 +461,7 @@ export function App() {
           setIsCartOpen(false);
           setIsCheckoutOpen(true);
         }}
+        onOrderCompleted={handleOrderCompleted}
       />
 
       {/* Checkout Modal */}

@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   Sparkles
 } from 'lucide-react';
-import { generateCasePdf } from '../utils/pdfGenerator';
+import { generateCasePdf, downloadCaseFile } from '../utils/pdfGenerator';
 import { BookCover } from './BookCover';
 
 export function CaseDetailModal({ 
@@ -24,7 +24,8 @@ export function CaseDetailModal({
   onAddToCart, 
   isInCart, 
   isPurchased,
-  onUnlockSolution 
+  onUnlockSolution,
+  onDirectDownload
 }) {
   const [activeTab, setActiveTab] = useState('overview'); // overview, suspects, hints, solution
   const [unlockedHints, setUnlockedHints] = useState({});
@@ -41,7 +42,11 @@ export function CaseDetailModal({
   };
 
   const handleDownloadPdf = () => {
-    generateCasePdf(caseItem, isPurchased || isSolutionRevealed);
+    if (onDirectDownload) {
+      onDirectDownload(caseItem);
+    } else {
+      downloadCaseFile(caseItem);
+    }
   };
 
   return (
@@ -444,7 +449,10 @@ export function CaseDetailModal({
               </div>
             ) : (
               <button
-                onClick={() => onAddToCart(caseItem)}
+                onClick={() => {
+                  onAddToCart(caseItem);
+                  onClose();
+                }}
                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-bold transition ${
                   isInCart
                     ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'

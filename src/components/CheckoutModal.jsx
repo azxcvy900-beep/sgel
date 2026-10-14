@@ -69,7 +69,7 @@ export function CheckoutModal({
       if (onOrderCompleted) {
         onOrderCompleted(order);
       }
-    }, 1500);
+    }, 350);
   };
 
   const handleDownloadSinglePdf = (item) => {
@@ -138,8 +138,7 @@ export function CheckoutModal({
                   <div>
                     <input
                       type="text"
-                      required
-                      placeholder="الاسم الكامل"
+                      placeholder="الاسم الكامل (اختياري)"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-stone-200 focus:outline-none focus:border-amber-400/60"
@@ -149,8 +148,7 @@ export function CheckoutModal({
                   <div>
                     <input
                       type="email"
-                      required
-                      placeholder="البريد الإلكتروني (لاستلام نسخة إضافية من الملفات)"
+                      placeholder="البريد الإلكتروني (اختياري - لاستلام نسخة إضافية)"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-stone-200 focus:outline-none focus:border-amber-400/60"

@@ -5,8 +5,13 @@ import {
   ShoppingBag, 
   ArrowLeft, 
   Check, 
-  AlertCircle 
+  AlertCircle,
+  DownloadCloud,
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { downloadCaseFile } from '../utils/pdfGenerator';
 
 export function CartDrawer({ 
   isOpen, 
@@ -15,10 +20,14 @@ export function CartDrawer({
   onRemoveItem, 
   appliedCoupon, 
   onApplyCoupon, 
-  onProceedToCheckout 
+  onProceedToCheckout,
+  onOrderCompleted
 }) {
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [downloadSuccessOrder, setDownloadSuccessOrder] = useState(null);
 
   if (!isOpen) return null;
 
@@ -42,6 +51,43 @@ export function CartDrawer({
     } else {
       setCouponError('كود الخصم غير صحيح');
     }
+  };
+
+  const handleInstantOneStepDownload = async () => {
+    if (cartItems.length === 0 || isProcessing) return;
+    setIsProcessing(true);
+
+    const orderRef = `SJ-${Math.floor(100000 + Math.random() * 900000)}`;
+    const currentItems = [...cartItems];
+    const order = {
+      orderId: orderRef,
+      date: new Date().toLocaleDateString('ar-SA'),
+      customerName: 'محقق سجل',
+      customerEmail: customerEmail.trim() || 'عميل سجل',
+      items: currentItems,
+      totalPrice: total,
+    };
+
+    // Stagger downloads to prevent browser blocking simultaneous downloads
+    currentItems.forEach((item, index) => {
+      setTimeout(() => {
+        downloadCaseFile(item);
+      }, index * 350);
+    });
+
+    confetti({
+      particleCount: 100,
+      spread: 75,
+      origin: { y: 0.5 },
+      colors: ['#f43f5e', '#fbbf24', '#34d399', '#ffffff']
+    });
+
+    if (onOrderCompleted) {
+      await onOrderCompleted(order);
+    }
+
+    setDownloadSuccessOrder(order);
+    setIsProcessing(false);
   };
 
   return (
@@ -71,9 +117,62 @@ export function CartDrawer({
             </button>
           </div>
 
-          {/* Cart Items List */}
+          {/* Cart Body */}
           <div className="p-6 overflow-y-auto flex-1 space-y-3">
-            {cartItems.length === 0 ? (
+            {downloadSuccessOrder ? (
+              <div className="py-6 text-center space-y-5 animate-fadeIn">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-950/40">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <h3 className="text-xl font-bold font-display text-white">
+                    تم التحميل بنجاح بخطوة واحدة! 🚀
+                  </h3>
+                  <p className="text-xs text-stone-300">
+                    تم إيداع ملفات القضايا في جهازك وحفظها دائماً في أرشيفك الشخصي.
+                  </p>
+                  <div className="inline-block px-3 py-1 mt-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-amber-300 font-mono text-xs font-bold">
+                    رقم الطلب: {downloadSuccessOrder.orderId}
+                  </div>
+                </div>
+
+                {/* Individual Re-Download list */}
+                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-right space-y-2">
+                  <div className="text-[11px] font-mono font-bold text-stone-400">
+                    روابط التحميل المباشرة:
+                  </div>
+                  {downloadSuccessOrder.items.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-2"
+                    >
+                      <div className="text-right truncate max-w-[190px]">
+                        <div className="text-[10px] font-mono text-amber-400">{item.caseNumber}</div>
+                        <div className="text-xs font-bold text-white truncate">{item.title}</div>
+                      </div>
+                      <button
+                        onClick={() => downloadCaseFile(item)}
+                        className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-dark-950 font-bold text-xs flex items-center gap-1.5 transition shadow"
+                      >
+                        <DownloadCloud className="w-3.5 h-3.5" />
+                        <span>تحميل</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setDownloadSuccessOrder(null);
+                    onClose();
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-stone-200 text-xs font-bold transition border border-white/10"
+                >
+                  تم - إغلاق ومتابعة التصفح
+                </button>
+              </div>
+            ) : cartItems.length === 0 ? (
               <div className="text-center py-20 space-y-3">
                 <span className="text-4xl block">🔍</span>
                 <p className="text-stone-300 font-bold text-base">السلة فارغة حالياً</p>
@@ -121,7 +220,7 @@ export function CartDrawer({
           </div>
 
           {/* Footer & Checkout */}
-          {cartItems.length > 0 && (
+          {!downloadSuccessOrder && cartItems.length > 0 && (
             <div className="p-6 bg-dark-950 border-t border-white/[0.08] space-y-4">
               
               {/* Coupon Form */}
@@ -191,21 +290,50 @@ export function CartDrawer({
                 </div>
               </div>
 
-              {/* Checkout CTA */}
+              {/* Optional Email & Notice */}
+              <div className="space-y-2 pt-1">
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="بريدك الإلكتروني (اختياري - لحفظ نسخة برقم الطلب)"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-400/60"
+                />
+                
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-400/10 border border-amber-400/20 text-[11px] text-amber-300/90 font-sans">
+                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>التحميل متاح فوراً ومجاناً (بوابة الدفع قيد الربط قريباً)</span>
+                </div>
+              </div>
+
+              {/* Instant 1-Step Checkout CTA */}
               <button
-                onClick={onProceedToCheckout}
-                className={`w-full py-4 rounded-xl text-white font-bold text-sm shadow-xl transition flex items-center justify-center gap-2 ${
-                  total === 0
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-950/40'
-                    : 'bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 shadow-rose-950/40'
-                }`}
+                onClick={handleInstantOneStepDownload}
+                disabled={isProcessing}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-xl shadow-emerald-950/40 transition flex items-center justify-center gap-2 group cursor-pointer"
               >
-                <span>{total === 0 ? 'المتابعة للتحميل المباشر مجاناً 🎁' : 'المتابعة وإتمام الشراء'}</span>
-                <ArrowLeft className="w-4 h-4" />
+                {isProcessing ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <DownloadCloud className="w-5 h-5 text-emerald-200 group-hover:-translate-y-0.5 transition" />
+                    <span>تحميل الملفات فوراً (بخطوة واحدة ⚡)</span>
+                  </>
+                )}
               </button>
 
+              {onProceedToCheckout && (
+                <button
+                  type="button"
+                  onClick={onProceedToCheckout}
+                  className="w-full text-center text-[11px] text-stone-500 hover:text-stone-300 underline transition"
+                >
+                  أو فتح نافذة الدفع التقليدية
+                </button>
+              )}
+
               <p className="text-[10px] text-center text-stone-500">
-                تسليم فوري لملف الكتاب والحل بصيغة PDF
+                تسليم فوري ومباشر لملفات القضايا والحلول
               </p>
             </div>
           )}
