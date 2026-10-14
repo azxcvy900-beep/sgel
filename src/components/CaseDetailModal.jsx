@@ -409,12 +409,20 @@ export function CaseDetailModal({
           
           {/* Price */}
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black font-mono text-white">
-              {caseItem.price} <span className="text-xs font-sans text-amber-400">ر.س</span>
-            </span>
-            {caseItem.originalPrice && (
+            {Number(caseItem.price) === 0 ? (
+              <span className="text-2xl font-black font-mono text-emerald-400 flex items-center gap-1.5">
+                <span>🎁</span>
+                <span>مجاناً</span>
+                <span className="text-xs font-sans text-emerald-500/80 font-normal">(0.00 ر.س)</span>
+              </span>
+            ) : (
+              <span className="text-2xl font-black font-mono text-white">
+                {Number(caseItem.price).toFixed(Number(caseItem.price) % 1 === 0 ? 0 : 2)} <span className="text-xs font-sans text-amber-400">ر.س</span>
+              </span>
+            )}
+            {caseItem.originalPrice && Number(caseItem.originalPrice) > Number(caseItem.price) && (
               <span className="text-xs text-stone-500 line-through font-mono">
-                {caseItem.originalPrice} ر.س
+                {Number(caseItem.originalPrice).toFixed(Number(caseItem.originalPrice) % 1 === 0 ? 0 : 2)} ر.س
               </span>
             )}
           </div>
@@ -440,6 +448,8 @@ export function CaseDetailModal({
                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-bold transition ${
                   isInCart
                     ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                    : Number(caseItem.price) === 0
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-950/40'
                     : 'bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white shadow-xl shadow-rose-950/40'
                 }`}
               >
@@ -447,6 +457,11 @@ export function CaseDetailModal({
                   <>
                     <Check className="w-4 h-4" />
                     <span>تمت الإضافة للسلة</span>
+                  </>
+                ) : Number(caseItem.price) === 0 ? (
+                  <>
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>احصل عليها مجاناً</span>
                   </>
                 ) : (
                   <>

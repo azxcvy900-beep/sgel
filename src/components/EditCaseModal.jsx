@@ -91,8 +91,8 @@ export function EditCaseModal({
       alert('يرجى إدخال اسم القضية.');
       return;
     }
-    if (!formData.price) {
-      alert('يرجى إدخال سعر البيع (السعر بعد).');
+    if (formData.price === '' || isNaN(Number(formData.price)) || Number(formData.price) < 0) {
+      alert('يرجى إدخال سعر البيع (يمكنك إدخال 0 لتكون القضية مجانية).');
       return;
     }
 
@@ -106,8 +106,8 @@ export function EditCaseModal({
       coverImage: formData.coverImage.trim() || caseItem.coverImage || '/detective_silhouette.jpg',
       difficulty: formData.category,
       category: formData.category,
-      originalPrice: formData.originalPrice ? Number(formData.originalPrice) : null,
-      price: Number(formData.price),
+      originalPrice: formData.originalPrice !== '' && !isNaN(Number(formData.originalPrice)) ? parseFloat(Number(formData.originalPrice).toFixed(2)) : null,
+      price: parseFloat(Number(formData.price).toFixed(2)) || 0,
       fileName: formData.fileName || '',
       fileData: formData.fileData || '',
       fileSize: formData.fileSize || caseItem.fileSize || '4.8 MB',
@@ -282,6 +282,8 @@ export function EditCaseModal({
                 <input
                   type="number"
                   min="0"
+                  step="0.01"
+                  placeholder="مثال: 50.00"
                   value={formData.originalPrice}
                   onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                   className="w-full bg-black border border-stone-700 focus:border-stone-500 rounded-xl px-4 py-2.5 text-sm text-stone-300 font-mono focus:outline-none transition"
@@ -298,13 +300,16 @@ export function EditCaseModal({
                 <input
                   type="number"
                   required
-                  min="1"
+                  min="0"
+                  step="0.01"
+                  placeholder="مثال: 0 (مجانية) أو 19.50"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   className="w-full bg-black border-2 border-crypta-yellow rounded-xl px-4 py-2.5 text-sm text-white font-mono font-bold focus:outline-none transition shadow-[0_0_10px_rgba(246,195,36,0.15)]"
                 />
                 <span className="absolute left-3 top-3 text-xs text-crypta-yellow font-bold font-mono">ر.س</span>
               </div>
+              <span className="text-[10px] text-stone-400 mt-1 block">أدخل 0 لتكون مجانية</span>
             </div>
           </div>
 

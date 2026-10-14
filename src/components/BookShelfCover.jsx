@@ -12,7 +12,9 @@ export function BookShelfCover({ caseItem }) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 text-right pointer-events-none">
           <span className="text-[10px] font-bold text-white line-clamp-1">{caseItem.title}</span>
-          <span className="text-[9px] font-mono text-crypta-yellow font-bold">{caseItem.price} ر.س</span>
+          <span className="text-[9px] font-mono text-crypta-yellow font-bold">
+            {Number(caseItem.price) === 0 ? '🎁 مجاناً' : `${Number(caseItem.price).toFixed(Number(caseItem.price) % 1 === 0 ? 0 : 2)} ر.س`}
+          </span>
         </div>
       </div>
     );

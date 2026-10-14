@@ -22,9 +22,14 @@ export function CartDrawer({
 
   if (!isOpen) return null;
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price, 0);
-  const discountAmount = appliedCoupon ? Math.round(subtotal * (appliedCoupon.percent / 100)) : 0;
+  const subtotal = cartItems.reduce((acc, item) => acc + (Number(item.price) || 0), 0);
+  const discountAmount = appliedCoupon ? (subtotal * (appliedCoupon.percent / 100)) : 0;
   const total = Math.max(0, subtotal - discountAmount);
+
+  const formatPrice = (val) => {
+    const num = Number(val) || 0;
+    return num.toFixed(num % 1 === 0 ? 0 : 2);
+  };
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -92,8 +97,14 @@ export function CartDrawer({
                     <div className="text-xs text-stone-400 font-mono">
                       {item.pages} ص • {item.difficulty}
                     </div>
-                    <div className="text-sm font-bold text-white font-mono pt-1">
-                      {item.price} <span className="text-xs text-amber-400 font-sans">ر.س</span>
+                    <div className="text-sm font-bold font-mono pt-1">
+                      {Number(item.price) === 0 ? (
+                        <span className="text-emerald-400 font-bold">🎁 مجاناً</span>
+                      ) : (
+                        <span className="text-white">
+                          {formatPrice(item.price)} <span className="text-xs text-amber-400 font-sans">ر.س</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -157,28 +168,39 @@ export function CartDrawer({
               <div className="space-y-2 text-xs font-mono pt-2 border-t border-white/[0.06]">
                 <div className="flex justify-between text-stone-400">
                   <span>المجموع:</span>
-                  <span>{subtotal} ر.س</span>
+                  <span>{formatPrice(subtotal)} ر.س</span>
                 </div>
 
                 {appliedCoupon && (
                   <div className="flex justify-between text-emerald-400">
                     <span>الخصم ({appliedCoupon.percent}%):</span>
-                    <span>-{discountAmount} ر.س</span>
+                    <span>-{formatPrice(discountAmount)} ر.س</span>
                   </div>
                 )}
 
                 <div className="flex justify-between text-base font-bold text-white pt-2 border-t border-white/[0.08]">
                   <span>الإجمالي النهائي:</span>
-                  <span className="text-amber-300 font-black">{total} ر.س</span>
+                  {total === 0 ? (
+                    <span className="text-emerald-400 font-black flex items-center gap-1.5">
+                      <span>🎁 مجاناً</span>
+                      <span className="text-xs font-mono font-normal text-emerald-500/80">(0.00 ر.س)</span>
+                    </span>
+                  ) : (
+                    <span className="text-amber-300 font-black">{formatPrice(total)} ر.س</span>
+                  )}
                 </div>
               </div>
 
               {/* Checkout CTA */}
               <button
                 onClick={onProceedToCheckout}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-sm shadow-xl shadow-rose-950/40 transition flex items-center justify-center gap-2"
+                className={`w-full py-4 rounded-xl text-white font-bold text-sm shadow-xl transition flex items-center justify-center gap-2 ${
+                  total === 0
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-950/40'
+                    : 'bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 shadow-rose-950/40'
+                }`}
               >
-                <span>المتابعة وإتمام الشراء</span>
+                <span>{total === 0 ? 'المتابعة للتحميل المباشر مجاناً 🎁' : 'المتابعة وإتمام الشراء'}</span>
                 <ArrowLeft className="w-4 h-4" />
               </button>
 

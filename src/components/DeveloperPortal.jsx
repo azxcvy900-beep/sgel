@@ -103,8 +103,8 @@ export function DeveloperPortal({
       alert('يرجى إدخال اسم القضية.');
       return;
     }
-    if (!formData.price) {
-      alert('يرجى إدخال سعر البيع (السعر بعد).');
+    if (formData.price === '' || isNaN(Number(formData.price)) || Number(formData.price) < 0) {
+      alert('يرجى إدخال سعر البيع (يمكنك إدخال 0 لتكون القضية مجانية).');
       return;
     }
 
@@ -119,8 +119,8 @@ export function DeveloperPortal({
       coverImage: formData.coverImage.trim() || '/detective_silhouette.jpg',
       difficulty: formData.category,
       category: formData.category,
-      originalPrice: formData.originalPrice ? Number(formData.originalPrice) : null,
-      price: Number(formData.price),
+      originalPrice: formData.originalPrice !== '' && !isNaN(Number(formData.originalPrice)) ? parseFloat(Number(formData.originalPrice).toFixed(2)) : null,
+      price: parseFloat(Number(formData.price).toFixed(2)) || 0,
       rating: 5.0,
       reviewsCount: 1,
       isFeatured: true,
@@ -436,7 +436,8 @@ export function DeveloperPortal({
                     <input
                       type="number"
                       min="0"
-                      placeholder="مثال: 50"
+                      step="0.01"
+                      placeholder="مثال: 50.00"
                       value={formData.originalPrice}
                       onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                       className="w-full bg-black border border-stone-700 focus:border-stone-500 rounded-xl px-4 py-3 text-sm text-stone-400 font-mono focus:outline-none transition"
@@ -455,15 +456,16 @@ export function DeveloperPortal({
                     <input
                       type="number"
                       required
-                      min="1"
-                      placeholder="مثال: 29"
+                      min="0"
+                      step="0.01"
+                      placeholder="مثال: 0 (مجانية) أو 19.50"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                       className="w-full bg-black border-2 border-crypta-yellow/80 focus:border-crypta-yellow rounded-xl px-4 py-3 text-base text-white font-mono font-bold focus:outline-none transition shadow-[0_0_15px_rgba(246,195,36,0.15)]"
                     />
                     <span className="absolute left-3 top-3.5 text-xs text-crypta-yellow font-bold font-mono">ر.س</span>
                   </div>
-                  <span className="text-[11px] text-stone-500 mt-1 block">المبلغ الفعلي الذي يدفعه العميل عند الشراء</span>
+                  <span className="text-[11px] text-stone-400 mt-1 block">المبلغ الفعلي للشراء (أدخل <span className="text-emerald-400 font-bold">0</span> لتكون القضية مجانية)</span>
                 </div>
               </div>
 
@@ -652,13 +654,21 @@ export function DeveloperPortal({
 
                   <div className="pt-3 border-t border-stone-800 flex items-center justify-between">
                     <div>
-                      <span className="text-lg font-black text-crypta-yellow font-mono">
-                        {item.price} ر.س
-                      </span>
-                      {item.originalPrice && (
-                        <span className="text-xs text-stone-500 line-through mr-1.5 font-mono">
-                          {item.originalPrice} ر.س
+                      {Number(item.price) === 0 ? (
+                        <span className="text-base font-black text-emerald-400 font-sans flex items-center gap-1">
+                          <span>🎁</span> مجاناً (0.00 ر.س)
                         </span>
+                      ) : (
+                        <div>
+                          <span className="text-lg font-black text-crypta-yellow font-mono">
+                            {Number(item.price).toFixed(Number(item.price) % 1 === 0 ? 0 : 2)} ر.س
+                          </span>
+                          {item.originalPrice !== null && item.originalPrice !== undefined && (
+                            <span className="text-xs text-stone-500 line-through mr-1.5 font-mono">
+                              {Number(item.originalPrice).toFixed(Number(item.originalPrice) % 1 === 0 ? 0 : 2)} ر.س
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 

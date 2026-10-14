@@ -160,9 +160,12 @@ export function AdminCaseManager({ isOpen, onClose, onAddCase }) {
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-stone-400 mb-1">السعر (ر.س)</label>
+              <label className="block text-xs font-mono text-stone-400 mb-1">السعر (ر.س - 0 للمجاني)</label>
               <input
                 type="number"
+                min="0"
+                step="0.01"
+                placeholder="0 (مجانية) أو 19.50"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-stone-200 font-mono"

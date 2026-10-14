@@ -77,16 +77,22 @@ export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurc
           
           {/* Price */}
           <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-black font-mono text-crypta-yellow">
-                {caseItem.price} <span className="text-xs text-white font-sans">ر.س</span>
+            {Number(caseItem.price) === 0 ? (
+              <span className="text-base sm:text-lg font-black text-emerald-400 font-sans flex items-center gap-1">
+                <span>🎁</span> مجاناً
               </span>
-              {caseItem.originalPrice && (
-                <span className="text-xs text-stone-500 line-through font-mono">
-                  {caseItem.originalPrice}
+            ) : (
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-lg font-black font-mono text-crypta-yellow">
+                  {Number(caseItem.price).toFixed(Number(caseItem.price) % 1 === 0 ? 0 : 2)} <span className="text-xs text-white font-sans">ر.س</span>
                 </span>
-              )}
-            </div>
+                {caseItem.originalPrice !== null && caseItem.originalPrice !== undefined && (
+                  <span className="text-xs text-stone-500 line-through font-mono">
+                    {Number(caseItem.originalPrice).toFixed(Number(caseItem.originalPrice) % 1 === 0 ? 0 : 2)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Action CTAs */}
@@ -116,13 +122,20 @@ export function CaseCard({ caseItem, onSelectCase, onAddToCart, isInCart, isPurc
                 className={`px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${
                   isInCart
                     ? 'bg-crypta-yellow text-black font-black'
-                    : 'bg-gradient-to-r from-crypta-pink to-rose-700 hover:from-rose-500 hover:to-crypta-pink text-white shadow-pink-glow'
+                    : Number(caseItem.price) === 0
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-glow'
+                      : 'bg-gradient-to-r from-crypta-pink to-rose-700 hover:from-rose-500 hover:to-crypta-pink text-white shadow-pink-glow'
                 }`}
               >
                 {isInCart ? (
                   <>
                     <Check className="w-3.5 h-3.5" />
                     <span>في السلة</span>
+                  </>
+                ) : Number(caseItem.price) === 0 ? (
+                  <>
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>احصل عليها مجاناً</span>
                   </>
                 ) : (
                   <>
