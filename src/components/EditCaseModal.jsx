@@ -383,15 +383,15 @@ export function EditCaseModal({
             )}
           </div>
 
-          {/* Payhip Integration (Optional) */}
+          {/* Gumroad / Payhip Integration (Optional) */}
           <div className="p-4 rounded-2xl bg-black/60 border border-amber-500/30 space-y-2">
             <label className="block text-xs font-bold text-amber-300 flex items-center gap-2">
               <span>💳</span>
-              <span>رابط منتج Payhip للدفع المباشر (اختياري)</span>
+              <span>رابط منتج Gumroad للدفع الفوري (بالبطاقات و Apple Pay)</span>
             </label>
             <input
               type="url"
-              placeholder="https://payhip.com/b/XXXX"
+              placeholder="https://alyazidi5.gumroad.com/l/rxeuws"
               value={formData.payhipUrl}
               onChange={(e) => setFormData({ ...formData, payhipUrl: e.target.value })}
               className="w-full bg-stone-900 border border-stone-700 focus:border-amber-400 rounded-xl px-4 py-2.5 text-xs text-white placeholder-stone-500 focus:outline-none font-mono"

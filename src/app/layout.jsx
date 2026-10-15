@@ -16,6 +16,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
         <script type="text/javascript" src="https://payhip.com/payhip.js" async></script>
+        <script src="https://gumroad.com/js/gumroad.js" async></script>
       </head>
       <body className="bg-black text-white antialiased font-sans selection:bg-[#ec1368] selection:text-white">
         {children}

@@ -567,19 +567,19 @@ export function DeveloperPortal({
                 </div>
               </div>
 
-              {/* 8. ربط الدفع الإلكتروني عبر Payhip (اختياري) */}
+              {/* 8. ربط الدفع الإلكتروني عبر Gumroad أو Payhip (اختياري) */}
               <div className="p-4 sm:p-5 rounded-2xl bg-black/80 border border-amber-500/30 space-y-3.5 shadow-lg">
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-bold text-amber-300 flex items-center gap-2">
                     <span className="text-base">💳</span>
-                    <span>8. رابط منتج Payhip للدفع المباشر (اختياري)</span>
+                    <span>8. رابط منتج Gumroad للدفع الفوري (بالبطاقات و Apple Pay)</span>
                   </label>
                   <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/30 font-bold">
-                    بوابة الدفع
+                    Gumroad / Payhip
                   </span>
                 </div>
                 <p className="text-xs text-stone-300 leading-relaxed">
-                  إذا رفعت هذه القضية في حسابك بـ Payhip، الصق رابطها هنا (مثل: <code className="text-amber-300 bg-amber-400/10 px-1.5 py-0.5 rounded font-mono">https://payhip.com/b/XXXX</code>). عند نقر العميل على الشراء ستنفتح له نافذة الدفع الفورية من Payhip.
+                  الصق رابط قضيتك من Gumroad هنا (مثل: <code className="text-amber-300 bg-amber-400/10 px-1.5 py-0.5 rounded font-mono">https://alyazidi5.gumroad.com/l/rxeuws</code>). سيتم تلقائياً تفعيل نافذة الدفع السريع المباشرة والمختصرة (السعر وبيانات البطاقة وأبل باي فقط دون أي تشتيت).
                 </p>
                 <div className="relative">
                   <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-stone-500">
@@ -587,7 +587,7 @@ export function DeveloperPortal({
                   </div>
                   <input
                     type="url"
-                    placeholder="https://payhip.com/b/XXXX"
+                    placeholder="https://alyazidi5.gumroad.com/l/rxeuws"
                     value={formData.payhipUrl}
                     onChange={(e) => setFormData({ ...formData, payhipUrl: e.target.value })}
                     className="w-full bg-stone-900/90 border border-stone-700 focus:border-amber-400 rounded-xl pr-10 pl-4 py-3.5 text-xs text-white placeholder-stone-500 focus:outline-none font-mono transition"
