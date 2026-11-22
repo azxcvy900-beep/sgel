@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "pricing_hub": {
+      ".read": true,
+      ".write": true,
+      "products": {
+        ".indexOn": ["code", "category", "updatedAt"]
+      }
+    }
+  }
+}
