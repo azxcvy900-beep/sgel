@@ -830,12 +830,175 @@ html, body {
 .status-err { color: var(--danger); font-weight: 600; }
 
 /* =========================================
+   PWA INSTALL BANNER
+========================================= */
+.install-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: white;
+  border-top: 2px solid var(--primary);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  animation: slideUp 0.4s ease;
+}
+
+.install-banner.ios {
+  border-top-color: #34aadc;
+  background: #f0f8ff;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.install-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.install-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.install-text strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.install-text span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.install-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-install {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-install:hover { background: var(--primary-dark); }
+
+.btn-dismiss {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-dismiss:hover { background: var(--border); }
+
+/* =========================================
+   MOBILE OPTIMIZATIONS
+========================================= */
+
+/* Make the whole app feel native on mobile */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior: none;
+}
+
+/* Safe area for notched phones */
+.top-bar {
+  padding-top: env(safe-area-inset-top);
+}
+
+.install-banner {
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+
+/* Make touch targets big enough */
+.company-select,
+.search-input,
+.btn-primary,
+.btn-admin,
+.btn-back {
+  min-height: 48px;
+}
+
+.result-item {
+  min-height: 52px;
+}
+
+/* Better tap effect on mobile */
+.result-item:active { background: var(--primary-light); }
+.btn-new-search:active { transform: scale(0.97); }
+.btn-install:active { transform: scale(0.97); }
+
+/* =========================================
    RESPONSIVE
 ========================================= */
 @media (max-width: 480px) {
-  .price-amount { font-size: 2.8rem; }
-  .price-display { padding: 1.2rem 2rem; }
+  /* Typography scale down */
+  .price-amount { font-size: 3rem; }
+  .price-display { padding: 1.5rem 2.5rem; }
+
+  /* Admin layout stack */
   .admin-header { flex-direction: column; align-items: stretch; }
   .save-area { justify-content: center; }
   .prices-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Tabs scrollable on small screen */
+  .admin-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab-btn { white-space: nowrap; }
+
+  /* Full-width cards */
+  .section-card { border-radius: 12px; }
+  .assistant-main { padding: 0.75rem 0.75rem; gap: 0.75rem; }
+
+  /* Pin card full width */
+  .pin-card { padding: 2rem 1.25rem; }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .prices-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* When installed as PWA */
+@media (display-mode: standalone) {
+  .top-bar {
+    padding-top: calc(8px + env(safe-area-inset-top));
+  }
+  /* Extra bottom padding to avoid home indicator */
+  .assistant-main, .admin-main {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
 }

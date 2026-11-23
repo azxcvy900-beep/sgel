@@ -1,8 +1,87 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { ref, onValue, set, push, remove, off } from 'firebase/database';
+import { useState, useEffect, useRef } from 'react';
+import { ref, onValue, set, off } from 'firebase/database';
 import { rtdb } from '../firebase/config';
+
+// ============================================================
+// PWA INSTALL PROMPT COMPONENT
+// ============================================================
+function InstallPrompt() {
+  const [prompt, setPrompt] = useState(null);  // Android/Chrome
+  const [showIos, setShowIos] = useState(false); // iOS
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    // Don't show if already installed (standalone mode)
+    if (window.matchMedia('(display-mode: standalone)').matches) return;
+    if (window.navigator.standalone) return; // iOS standalone
+    if (localStorage.getItem('pwa-dismissed')) return;
+
+    // Android/Chrome: catch beforeinstallprompt
+    const handler = (e) => {
+      e.preventDefault();
+      setPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // iOS detection
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isSafari = /safari/i.test(navigator.userAgent) && !/chrome/i.test(navigator.userAgent);
+    if (isIos && isSafari) {
+      // Show iOS tip after 2 seconds
+      setTimeout(() => setShowIos(true), 2000);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  function dismiss() {
+    setPrompt(null);
+    setShowIos(false);
+    setDismissed(true);
+    localStorage.setItem('pwa-dismissed', '1');
+  }
+
+  async function install() {
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === 'accepted') dismiss();
+    else setPrompt(null);
+  }
+
+  if (dismissed) return null;
+
+  // Android/Chrome install banner
+  if (prompt) return (
+    <div className="install-banner">
+      <img src="/icon-192.png" alt="icon" className="install-icon" />
+      <div className="install-text">
+        <strong>ثبّت التطبيق</strong>
+        <span>وصول سريع من شاشتك الرئيسية</span>
+      </div>
+      <div className="install-actions">
+        <button className="btn-install" onClick={install}>تثبيت</button>
+        <button className="btn-dismiss" onClick={dismiss}>لاحقاً</button>
+      </div>
+    </div>
+  );
+
+  // iOS tip banner
+  if (showIos) return (
+    <div className="install-banner ios">
+      <img src="/icon-192.png" alt="icon" className="install-icon" />
+      <div className="install-text">
+        <strong>ثبّت كتطبيق على iPhone</strong>
+        <span>اضغط <strong>مشاركة</strong> ثم <strong>"إضافة إلى الشاشة الرئيسية"</strong></span>
+      </div>
+      <button className="btn-dismiss" onClick={dismiss}>✕</button>
+    </div>
+  );
+
+  return null;
+}
 
 // ============================================================
 // SAMPLE DATA - will be replaced by Firebase data
@@ -82,6 +161,7 @@ export default function PriceLookup() {
 
   return (
     <div className="app-root" dir="rtl">
+      <InstallPrompt />
       {/* TOP BAR */}
       <header className="top-bar">
         <div className="top-bar-inner">
