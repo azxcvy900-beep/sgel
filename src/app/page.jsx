@@ -1,7 +1,7 @@
 'use client';
 
-import { App } from '../App';
+import PriceLookup from '../components/PriceLookup';
 
 export default function Page() {
-  return <App />;
+  return <PriceLookup />;
 }
