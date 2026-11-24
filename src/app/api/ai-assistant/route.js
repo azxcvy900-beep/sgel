@@ -64,36 +64,56 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+    // قائمة نماذج Google الحديثة بالترتيب مع تجنب أخطاء الضغط 503
+    const models = [
+      'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-2.0-flash'
+    ];
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.1
-        }
-      })
-    });
+    let lastError = null;
 
-    if (res.ok) {
-      const data = await res.json();
-      let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
+    for (const model of models) {
       try {
-        return NextResponse.json(JSON.parse(rawText));
-      } catch {
-        return NextResponse.json({ replyText: rawText, action: null });
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+          try {
+            return NextResponse.json(JSON.parse(rawText));
+          } catch {
+            return NextResponse.json({ replyText: rawText, action: null });
+          }
+        }
+
+        // إذا كان هناك ضغط 503 أو غير متوفر 404، جرب النموذج التالي فوراً
+        const errDetail = await res.text();
+        lastError = `[${model}] HTTP ${res.status}: ${errDetail}`;
+        console.warn(`Model ${model} returned ${res.status}, trying next fallback model...`);
+
+      } catch (err) {
+        lastError = err.message;
       }
-    } else {
-      const errText = await res.text();
-      return NextResponse.json({
-        replyText: `تنبيه من Google (${res.status}): ${errText}`,
-        error: errText
-      });
     }
+
+    return NextResponse.json({
+      replyText: `سيرفرات الذكاء الاصطناعي تحت ضغط شديد حالياً، يرجى المحاولة بعد قليل.`,
+      error: lastError
+    });
 
   } catch (error) {
     console.error("AI route general error:", error);
