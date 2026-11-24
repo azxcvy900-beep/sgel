@@ -27,6 +27,9 @@ const SYSTEM_INSTRUCTIONS = `
 }
 `;
 
+// Helper delay function
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -64,85 +67,77 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    let lastError = null;
-
-    // 1. تجربة Google Interactions API الجديدة لـ gemini-3.8-flash أولاً
-    try {
-      const interactionsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gemini-3.8-flash',
-          input: userPrompt
-        })
-      });
-
-      if (interactionsRes.ok) {
-        const data = await interactionsRes.json();
-        // قراءة النتيجة من Interactions API
-        let rawText = '';
-        if (data.outputs && data.outputs.length > 0) {
-          rawText = data.outputs[0]?.text || data.outputs[0]?.content || JSON.stringify(data.outputs[0]);
-        } else if (data.text) {
-          rawText = data.text;
-        } else if (data.response) {
-          rawText = data.response;
-        } else {
-          rawText = JSON.stringify(data);
-        }
-
-        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-        try {
-          return NextResponse.json(JSON.parse(rawText));
-        } catch {
-          return NextResponse.json({ replyText: rawText, action: null });
-        }
-      } else {
-        const errText = await interactionsRes.text();
-        lastError = `Interactions API [${interactionsRes.status}]: ${errText}`;
-        console.warn("Interactions API not directly available, checking generateContent endpoints...");
-      }
-    } catch (e) {
-      lastError = `Interactions error: ${e.message}`;
-    }
-
-    // 2. تجربة generateContent لنموذج gemini-3.8-flash
     const candidateEndpoints = [
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`,
-      `https://generativelanguage.googleapis.com/v1/models/gemini-3.8-flash:generateContent`
+      `https://generativelanguage.googleapis.com/v1/models/gemini-3.8-flash:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/interactions`
     ];
 
-    for (const ep of candidateEndpoints) {
-      try {
-        const res = await fetch(`${ep}?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: { temperature: 0.1 }
-          })
-        });
+    let lastError = null;
 
-        if (res.ok) {
-          const data = await res.json();
-          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-          try {
-            return NextResponse.json(JSON.parse(rawText));
-          } catch {
-            return NextResponse.json({ replyText: rawText, action: null });
+    // Retry loop with multiple endpoints to overcome temporary Google 503 spikes
+    for (let attempt = 0; attempt < 3; attempt++) {
+      for (const ep of candidateEndpoints) {
+        try {
+          let res;
+          if (ep.includes('/interactions')) {
+            res = await fetch(`${ep}?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'gemini-3.8-flash',
+                input: userPrompt
+              })
+            });
+          } else {
+            res = await fetch(`${ep}?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                generationConfig: { temperature: 0.1 }
+              })
+            });
           }
-        } else {
+
+          if (res.ok) {
+            const data = await res.json();
+            let rawText = '';
+
+            if (ep.includes('/interactions')) {
+              rawText = data?.outputs?.[0]?.text || data?.text || JSON.stringify(data);
+            } else {
+              rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            }
+
+            rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            try {
+              return NextResponse.json(JSON.parse(rawText));
+            } catch {
+              return NextResponse.json({ replyText: rawText, action: null });
+            }
+          }
+
+          // If 503 (Server busy), wait a little and retry
+          if (res.status === 503) {
+            console.warn(`Gemini 503 on attempt ${attempt + 1}, retrying...`);
+            await wait(600); // 600ms backoff
+            continue;
+          }
+
           const detail = await res.text();
-          lastError = `${ep} -> [${res.status}]: ${detail}`;
+          lastError = `[${res.status}]: ${detail}`;
+
+        } catch (err) {
+          lastError = err.message;
         }
-      } catch (err) {
-        lastError = err.message;
       }
+      await wait(800);
     }
 
     return NextResponse.json({
-      replyText: `تنبيه من Google: ${lastError}`,
+      replyText: `سيرفر Google تحت ضغط مؤقت، يرجى إعادة المحاولة بعد ثوانٍ بسيطة. (${lastError})`,
       error: lastError
     });
 
