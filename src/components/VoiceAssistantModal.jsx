@@ -16,34 +16,42 @@ export default function VoiceAssistantModal({
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: 'مرحباً بك! أنا مساعد التسعير الصوتي. يمكنك أن تسألني عن أي سعر أو تطلب إضافة/تعديل منتج أو شركة (يتطلب رمز التأكيد).'
+      text: 'مرحباً بك! أنا مساعد التسعير الصوتي. اسألني عن أي سعر، أو اطلب إضافة أو تعديل منتج أو شركة برمز التأكيد (1234).'
     }
   ]);
   const [pendingAction, setPendingAction] = useState(null);
   const [pinInput, setPinInput] = useState('');
   const [loading, setLoading] = useState(false);
   const recognitionRef = useRef(null);
+  const chatBottomRef = useRef(null);
 
-  // Initialize Speech Recognition
+  // Auto scroll
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  // Speech Recognition Setup
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.interimResults = true;
         recognition.lang = 'ar-SA';
 
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
-        recognition.onerror = (e) => {
-          console.error("Speech error:", e);
-          setIsListening(false);
-        };
+        recognition.onerror = () => setIsListening(false);
         recognition.onresult = (event) => {
-          const text = event.results[0][0].transcript;
-          setTranscript(text);
-          handleSendMessage(text);
+          let currentText = '';
+          for (let i = 0; i < event.results.length; i++) {
+            currentText += event.results[i][0].transcript;
+          }
+          setTranscript(currentText);
+          if (event.results[0].isFinal) {
+            handleSendMessage(currentText);
+          }
         };
 
         recognitionRef.current = recognition;
@@ -56,14 +64,14 @@ export default function VoiceAssistantModal({
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'ar-SA';
-      utterance.rate = 1.0;
+      utterance.rate = 1.05;
       window.speechSynthesis.speak(utterance);
     }
   };
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      alert('المتصفح الحالي لا يدعم التعرف على الصوت المباشر، يمكنك الكتابة في الأسفل.');
+      alert('المتصفح لا يدعم التسجيل الصوتي المباشر، يمكنك الكتابة في الأسفل.');
       return;
     }
     if (isListening) {
@@ -107,19 +115,17 @@ export default function VoiceAssistantModal({
         speak(data.replyText);
       }
 
-      // If an action was returned
       if (data.action) {
         if (data.action.requiresPin && providedPin !== adminPin) {
           setPendingAction(data.action);
         } else {
-          // Authorized or no pin required
           onApplyAction(data.action);
           setPendingAction(null);
         }
       }
-    } catch (err) {
+    } catch {
       setLoading(false);
-      const errMsg = 'عذراً، حدث خطأ أثناء الاتصال بمساعد الذكاء الاصطناعي.';
+      const errMsg = 'عذراً، حدث خطأ في الاتصال.';
       setMessages((prev) => [...prev, { sender: 'ai', text: errMsg }]);
       speak(errMsg);
     }
@@ -130,7 +136,7 @@ export default function VoiceAssistantModal({
     if (pinInput === adminPin) {
       if (pendingAction) {
         onApplyAction(pendingAction);
-        const successText = 'تم تأكيد الرمز وتنفيذ العملية بنجاح!';
+        const successText = 'تم تأكيد الرمز 1234 وتنفيذ العملية بنجاح وتحديث الأسعار!';
         setMessages((prev) => [...prev, { sender: 'ai', text: successText }]);
         speak(successText);
         setPendingAction(null);
@@ -152,13 +158,27 @@ export default function VoiceAssistantModal({
         {/* Header */}
         <div className="voice-modal-header">
           <div className="voice-header-title">
-            <span className="voice-ai-badge">Gemini AI</span>
-            <h3>المساعد الصوتي للتسعير</h3>
+            <span className="voice-pulse-indicator"></span>
+            <h3>المساعد الصوتي الذكي</h3>
           </div>
           <button className="btn-close-modal" onClick={onClose}>✕</button>
         </div>
 
-        {/* Messages Body */}
+        {/* Dynamic Voice Visualizer Wave when listening */}
+        {isListening && (
+          <div className="voice-wave-container">
+            <span className="wave-bar"></span>
+            <span className="wave-bar"></span>
+            <span className="wave-bar"></span>
+            <span className="wave-bar"></span>
+            <span className="wave-bar"></span>
+            <span className="wave-bar"></span>
+            <span className="wave-bar"></span>
+            <p className="wave-status">جارٍ الاستماع لصوتك الآن...</p>
+          </div>
+        )}
+
+        {/* Chat Messages */}
         <div className="voice-chat-box">
           {messages.map((m, idx) => (
             <div key={idx} className={`voice-bubble ${m.sender}`}>
@@ -172,32 +192,33 @@ export default function VoiceAssistantModal({
               <span className="dot"></span>
             </div>
           )}
+          <div ref={chatBottomRef} />
         </div>
 
-        {/* Pin Prompt if Action requires authorization */}
+        {/* PIN Authorization prompt */}
         {pendingAction && (
           <form className="voice-pin-container" onSubmit={handleConfirmPin}>
-            <p>🔒 هذه العملية تتطلب رمز التأكيد (PIN):</p>
+            <p>🔒 عملية حساسة تتطلب رمز التأكيد (1234):</p>
             <div className="pin-input-group">
               <input
                 type="password"
-                placeholder="أدخل رمز الإدارة (1234)"
+                placeholder="أدخل رمز الإدارة..."
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
                 autoFocus
+                maxLength={8}
               />
-              <button type="submit" className="btn-confirm-pin">تأكيد</button>
+              <button type="submit" className="btn-confirm-pin">تأكيد وتنفيذ</button>
             </div>
           </form>
         )}
 
-        {/* Input Bar & Mic Button */}
+        {/* Controls Bar */}
         <div className="voice-controls">
           <button
             type="button"
-            className={`btn-mic ${isListening ? 'listening' : ''}`}
+            className={`btn-mic-action ${isListening ? 'active-listening' : ''}`}
             onClick={toggleListening}
-            title={isListening ? 'جارٍ الاستماع... اضغط للإيقاف' : 'اضغط للتحدث بصوتك'}
           >
             {isListening ? '🛑' : '🎙️'}
           </button>
@@ -205,7 +226,7 @@ export default function VoiceAssistantModal({
           <input
             type="text"
             className="voice-text-input"
-            placeholder={isListening ? 'جارٍ الاستماع لصوتك...' : 'أو اكتب استفسارك أو طلبك هنا...'}
+            placeholder={isListening ? 'جارٍ الاستماع...' : 'اكتب أو تحدث بالميكروفون...'}
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(transcript)}

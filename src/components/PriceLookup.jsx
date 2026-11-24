@@ -6,34 +6,29 @@ import { rtdb } from '../firebase/config';
 import VoiceAssistantModal from './VoiceAssistantModal';
 
 // ============================================================
-// PWA INSTALL PROMPT COMPONENT
+// PWA INSTALL PROMPT
 // ============================================================
 function InstallPrompt() {
-  const [prompt, setPrompt] = useState(null);  // Android/Chrome
-  const [showIos, setShowIos] = useState(false); // iOS
+  const [prompt, setPrompt] = useState(null);
+  const [showIos, setShowIos] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    // Don't show if already installed (standalone mode)
     if (window.matchMedia('(display-mode: standalone)').matches) return;
-    if (window.navigator.standalone) return; // iOS standalone
+    if (window.navigator.standalone) return;
     if (localStorage.getItem('pwa-dismissed')) return;
 
-    // Android/Chrome: catch beforeinstallprompt
     const handler = (e) => {
       e.preventDefault();
       setPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // iOS detection
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isSafari = /safari/i.test(navigator.userAgent) && !/chrome/i.test(navigator.userAgent);
     if (isIos && isSafari) {
-      // Show iOS tip after 2 seconds
-      setTimeout(() => setShowIos(true), 2000);
+      setTimeout(() => setShowIos(true), 2500);
     }
-
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
@@ -54,13 +49,12 @@ function InstallPrompt() {
 
   if (dismissed) return null;
 
-  // Android/Chrome install banner
   if (prompt) return (
     <div className="install-banner">
       <img src="/icon-192.png" alt="icon" className="install-icon" />
       <div className="install-text">
-        <strong>ثبّت التطبيق</strong>
-        <span>وصول سريع من شاشتك الرئيسية</span>
+        <strong>تثبيت مركز الأسعار</strong>
+        <span>تطبيق سريع وخفيف على شاشتك</span>
       </div>
       <div className="install-actions">
         <button className="btn-install" onClick={install}>تثبيت</button>
@@ -69,12 +63,11 @@ function InstallPrompt() {
     </div>
   );
 
-  // iOS tip banner
   if (showIos) return (
     <div className="install-banner ios">
       <img src="/icon-192.png" alt="icon" className="install-icon" />
       <div className="install-text">
-        <strong>ثبّت كتطبيق على iPhone</strong>
+        <strong>تثبيت على iPhone</strong>
         <span>اضغط <strong>مشاركة</strong> ثم <strong>"إضافة إلى الشاشة الرئيسية"</strong></span>
       </div>
       <button className="btn-dismiss" onClick={dismiss}>✕</button>
@@ -85,41 +78,34 @@ function InstallPrompt() {
 }
 
 // ============================================================
-// SAMPLE DATA - will be replaced by Firebase data
+// SAMPLE DATA
 // ============================================================
 const SAMPLE_COMPANIES = [
   'شركة الخليج', 'شركة النجوم', 'شركة المستقبل', 'شركة الأمل',
-  'شركة الرياض', 'شركة جدة', 'شركة الدمام', 'شركة المدينة',
-  'شركة القصيم', 'شركة تبوك'
+  'شركة الرياض', 'شركة جدة', 'شركة الدمام', 'شركة المدينة'
 ];
 
-const SAMPLE_PRODUCTS = Array.from({ length: 20 }, (_, i) => ({
+const SAMPLE_PRODUCTS = Array.from({ length: 15 }, (_, i) => ({
   id: `p${i + 1}`,
   name: `منتج تجريبي ${i + 1}`,
   code: `PRD-${String(i + 1).padStart(4, '0')}`,
   prices: Object.fromEntries(
     SAMPLE_COMPANIES.map((c, ci) => [
       c,
-      ci % 3 === 0 && i % 2 === 0 ? null : Math.floor(Math.random() * 500 + 50)
+      ci % 3 === 0 && i % 2 === 0 ? null : Math.floor(Math.random() * 400 + 40)
     ])
   )
 }));
 
-// ============================================================
-// ADMIN PIN
-// ============================================================
 const DEFAULT_PIN = '1234';
 
-// ============================================================
-// HELPER: format price
-// ============================================================
 function formatPrice(val) {
   if (val === null || val === undefined || val === '' || val === 0) return null;
   return Number(val).toLocaleString('ar-SA');
 }
 
 // ============================================================
-// MAIN APP
+// MAIN APP COMPONENT
 // ============================================================
 export default function PriceLookup() {
   const [view, setView] = useState('assistant'); // 'assistant' | 'admin' | 'pin'
@@ -131,10 +117,47 @@ export default function PriceLookup() {
   const [adminPin, setAdminPin] = useState(DEFAULT_PIN);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
 
-  // Apply AI Action (Update price, add product, add company)
+  // Quick manual add modal
+  const [quickAddModal, setQuickAddModal] = useState(null); // 'product' | 'company' | null
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdCode, setNewProdCode] = useState('');
+  const [newCompName, setNewCompName] = useState('');
+  const [quickPin, setQuickPin] = useState('');
+  const [quickPinErr, setQuickPinErr] = useState(false);
+
+  // Load from Firebase
+  useEffect(() => {
+    const dbRef = ref(rtdb, 'pricing_hub');
+    const unsub = onValue(dbRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val();
+        if (data.companies) setCompanies(data.companies);
+        if (data.products) {
+          const arr = Object.entries(data.products).map(([id, p]) => ({ id, ...p }));
+          setProducts(arr);
+        }
+        if (data.adminPin) setAdminPin(data.adminPin);
+        setFirebaseConnected(true);
+      }
+    }, () => setFirebaseConnected(false));
+    return () => off(dbRef);
+  }, []);
+
+  function handlePinSubmit(e) {
+    e.preventDefault();
+    if (pinInput === adminPin) {
+      setView('admin');
+      setPinInput('');
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPinInput('');
+    }
+  }
+
+  // Handle Voice Assistant action
   const handleApplyAiAction = async (action) => {
     if (!action) return;
-
     let updatedCompanies = [...companies];
     let updatedProducts = [...products];
 
@@ -173,76 +196,110 @@ export default function PriceLookup() {
       }
     }
 
-    // Save to Firebase immediately
     try {
       await saveToFirebase(updatedCompanies, updatedProducts, adminPin);
     } catch (e) {
-      console.error('Firebase save error from AI action:', e);
+      console.error('Firebase save error:', e);
     }
   };
 
-  // Load from Firebase
-  useEffect(() => {
-    const dbRef = ref(rtdb, 'pricing_hub');
-    const unsub = onValue(dbRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.val();
-        if (data.companies) setCompanies(data.companies);
-        if (data.products) {
-          const arr = Object.entries(data.products).map(([id, p]) => ({ id, ...p }));
-          setProducts(arr);
-        }
-        if (data.adminPin) setAdminPin(data.adminPin);
-        setFirebaseConnected(true);
-      }
-    }, () => setFirebaseConnected(false));
-    return () => off(dbRef);
-  }, []);
-
-  function handlePinSubmit(e) {
+  // Quick Add submission
+  const handleQuickAddSubmit = async (e) => {
     e.preventDefault();
-    if (pinInput === adminPin) {
-      setView('admin');
-      setPinInput('');
-      setPinError(false);
-    } else {
-      setPinError(true);
-      setPinInput('');
+    if (quickPin !== adminPin) {
+      setQuickPinErr(true);
+      return;
     }
-  }
+    setQuickPinErr(false);
+
+    let updatedCompanies = [...companies];
+    let updatedProducts = [...products];
+
+    if (quickAddModal === 'product' && newProdName.trim()) {
+      const newProduct = {
+        id: 'p_' + Date.now(),
+        name: newProdName.trim(),
+        code: newProdCode.trim() || ('PRD-' + Date.now().toString().slice(-4)),
+        prices: Object.fromEntries(updatedCompanies.map(c => [c, null]))
+      };
+      updatedProducts = [newProduct, ...updatedProducts];
+      setProducts(updatedProducts);
+      setNewProdName('');
+      setNewProdCode('');
+    } else if (quickAddModal === 'company' && newCompName.trim()) {
+      if (!updatedCompanies.includes(newCompName.trim())) {
+        updatedCompanies.push(newCompName.trim());
+        setCompanies(updatedCompanies);
+      }
+      setNewCompName('');
+    }
+
+    try {
+      await saveToFirebase(updatedCompanies, updatedProducts, adminPin);
+    } catch (err) {
+      console.error(err);
+    }
+
+    setQuickPin('');
+    setQuickAddModal(null);
+  };
 
   return (
     <div className="app-root" dir="rtl">
       <InstallPrompt />
-      {/* TOP BAR */}
+
+      {/* TOP HEADER */}
       <header className="top-bar">
         <div className="top-bar-inner">
-          <div className="app-title">
-            <span className="app-icon">🏪</span>
-            <span>مركز الأسعار</span>
-            {firebaseConnected && <span className="live-badge">● مباشر</span>}
+          <div className="top-bar-brand">
+            <span className="brand-icon">🏷️</span>
+            <div className="brand-text">
+              <span className="brand-title">مركز الأسعار</span>
+              {firebaseConnected && <span className="live-dot-indicator">● متزامن</span>}
+            </div>
           </div>
-          <div className="nav-actions">
-            <button className="btn-voice-nav" onClick={() => setIsVoiceOpen(true)} title="المساعد الصوتي">
-              🎙️ صوتي
-            </button>
+
+          <div className="top-bar-actions">
+            {/* Quick manual entry in corner */}
+            <div className="corner-quick-actions">
+              <button
+                className="btn-corner-add"
+                onClick={() => setQuickAddModal('product')}
+                title="إضافة منتج يدوي"
+              >
+                + منتج
+              </button>
+              <button
+                className="btn-corner-add"
+                onClick={() => setQuickAddModal('company')}
+                title="إضافة شركة يدوية"
+              >
+                + شركة
+              </button>
+            </div>
+
             {view === 'assistant' ? (
-              <button className="btn-admin" onClick={() => setView('pin')}>
+              <button className="btn-admin-pill" onClick={() => setView('pin')}>
                 🔐 الإدارة
               </button>
             ) : (
-              <button className="btn-back" onClick={() => setView('assistant')}>
-                ← واجهة التسعير
+              <button className="btn-back-pill" onClick={() => setView('assistant')}>
+                ← التسعير
               </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* VIEWS */}
+      {/* MAIN VIEWS */}
       {view === 'assistant' && (
-        <AssistantView companies={companies} products={products} />
+        <AssistantView
+          companies={companies}
+          products={products}
+          onOpenVoice={() => setIsVoiceOpen(true)}
+        />
       )}
+
       {view === 'pin' && (
         <PinView
           pinInput={pinInput}
@@ -252,6 +309,7 @@ export default function PriceLookup() {
           onCancel={() => { setView('assistant'); setPinInput(''); setPinError(false); }}
         />
       )}
+
       {view === 'admin' && (
         <AdminView
           companies={companies}
@@ -265,16 +323,7 @@ export default function PriceLookup() {
         />
       )}
 
-      {/* Floating Mic Button */}
-      <button
-        className="floating-mic-btn"
-        onClick={() => setIsVoiceOpen(true)}
-        aria-label="تحدث مع المساعد الصوتي"
-      >
-        🎙️
-      </button>
-
-      {/* Voice Assistant Modal */}
+      {/* Voice Assistant Modal with Audio Wave effects */}
       <VoiceAssistantModal
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
@@ -283,68 +332,85 @@ export default function PriceLookup() {
         adminPin={adminPin}
         onApplyAction={handleApplyAiAction}
       />
-    </div>
-  );
-}
 
-// ============================================================
-// SAVE TO FIREBASE
-// ============================================================
-async function saveToFirebase(companies, products, adminPin) {
-  const productsObj = {};
-  products.forEach(p => {
-    const { id, ...rest } = p;
-    productsObj[id || push(ref(rtdb, 'pricing_hub/products')).key] = rest;
-  });
-  await set(ref(rtdb, 'pricing_hub'), {
-    companies,
-    products: productsObj,
-    adminPin,
-    lastUpdated: Date.now()
-  });
-}
+      {/* Quick Add Modal (Corner manual insert with PIN) */}
+      {quickAddModal && (
+        <div className="quick-modal-backdrop" onClick={() => setQuickAddModal(null)}>
+          <div className="quick-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="quick-modal-header">
+              <h3>{quickAddModal === 'product' ? '📦 إضافة منتج جديد' : '🏢 إضافة شركة جديدة'}</h3>
+              <button className="btn-close-sm" onClick={() => setQuickAddModal(null)}>✕</button>
+            </div>
+            <form onSubmit={handleQuickAddSubmit} className="quick-form">
+              {quickAddModal === 'product' ? (
+                <>
+                  <label>اسم المنتج:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="مثال: فحمات كامري أمامية"
+                    value={newProdName}
+                    onChange={e => setNewProdName(e.target.value)}
+                    autoFocus
+                  />
+                  <label>رقم القطعة / الكود (اختياري):</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: BRK-2024"
+                    value={newProdCode}
+                    onChange={e => setNewProdCode(e.target.value)}
+                  />
+                </>
+              ) : (
+                <>
+                  <label>اسم الشركة:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="مثال: شركة الصفا التجارية"
+                    value={newCompName}
+                    onChange={e => setNewCompName(e.target.value)}
+                    autoFocus
+                  />
+                </>
+              )}
 
-// ============================================================
-// PIN VIEW
-// ============================================================
-function PinView({ pinInput, setPinInput, pinError, onSubmit, onCancel }) {
-  return (
-    <div className="centered-view">
-      <div className="pin-card">
-        <div className="pin-icon">🔐</div>
-        <h2>دخول الإدارة</h2>
-        <form onSubmit={onSubmit}>
-          <input
-            type="password"
-            className={`pin-input ${pinError ? 'pin-error' : ''}`}
-            placeholder="أدخل رمز الدخول"
-            value={pinInput}
-            onChange={e => { setPinInput(e.target.value); }}
-            autoFocus
-            maxLength={8}
-          />
-          {pinError && <p className="error-text">❌ رمز خاطئ، حاول مجدداً</p>}
-          <div className="pin-actions">
-            <button type="submit" className="btn-primary">دخول</button>
-            <button type="button" className="btn-secondary" onClick={onCancel}>إلغاء</button>
+              <div className="quick-pin-section">
+                <label>رمز التأكيد (1234):</label>
+                <input
+                  type="password"
+                  required
+                  maxLength={8}
+                  placeholder="رمز الإدارة"
+                  value={quickPin}
+                  onChange={e => setQuickPin(e.target.value)}
+                />
+                {quickPinErr && <p className="err-sub">❌ الرمز غير صحيح!</p>}
+              </div>
+
+              <div className="quick-form-btns">
+                <button type="submit" className="btn-save-sm">حفظ وتأكيد</button>
+                <button type="button" className="btn-cancel-sm" onClick={() => setQuickAddModal(null)}>إلغاء</button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ============================================================
-// ASSISTANT VIEW
+// ASSISTANT VIEW (Refined, elegant & mobile first)
 // ============================================================
-function AssistantView({ companies, products }) {
+function AssistantView({ companies, products, onOpenVoice }) {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const searchRef = useRef(null);
 
-  // Search
+  // Search logic
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -355,7 +421,7 @@ function AssistantView({ companies, products }) {
     const found = products.filter(p =>
       p.name?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q)
     );
-    setResults(found.slice(0, 8));
+    setResults(found.slice(0, 6));
     setSelectedProduct(null);
   }, [query, products]);
 
@@ -381,100 +447,93 @@ function AssistantView({ companies, products }) {
   const priceUndefined = price === null || price === undefined || price === 0 || price === '';
 
   return (
-    <main className="assistant-main">
+    <main className="assistant-container">
 
-      {/* COMPANY SELECTOR */}
-      <section className="section-card company-section">
-        <label className="section-label">📋 اختر الشركة</label>
-        <select
-          className="company-select"
-          value={selectedCompany}
-          onChange={e => setSelectedCompany(e.target.value)}
-        >
-          <option value="">-- اختر الشركة --</option>
-          {companies.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-      </section>
-
-      {/* SEARCH */}
-      <section className="section-card search-section">
-        <label className="section-label">🔍 ابحث عن المنتج</label>
-        <div className="search-wrapper">
+      {/* 1. PRODUCT SEARCH BOX */}
+      <div className="compact-card search-card">
+        <label className="field-title">🔍 اسم المنتج أو رقم القطعة</label>
+        <div className="search-field-wrapper">
           <input
             ref={searchRef}
             type="text"
-            className="search-input"
-            placeholder="اسم المنتج أو رقم القطعة..."
+            className="clean-search-input"
+            placeholder="اكتب اسم المنتج للبحث..."
             value={query}
             onChange={e => setQuery(e.target.value)}
             autoComplete="off"
           />
           {query && (
-            <button className="clear-btn" onClick={clearSearch}>✕</button>
+            <button className="clean-clear-btn" onClick={clearSearch}>✕</button>
           )}
         </div>
 
-        {/* DROPDOWN RESULTS */}
+        {/* Dropdown Suggestions */}
         {results.length > 0 && (
-          <ul className="results-dropdown">
+          <ul className="clean-results-dropdown">
             {results.map(p => (
-              <li key={p.id} className="result-item" onClick={() => selectProduct(p)}>
-                <span className="result-name">{p.name}</span>
-                <span className="result-code">{p.code}</span>
+              <li key={p.id} className="clean-result-item" onClick={() => selectProduct(p)}>
+                <span className="clean-res-name">{p.name}</span>
+                <span className="clean-res-code">{p.code}</span>
               </li>
             ))}
           </ul>
         )}
+      </div>
 
-        {query && results.length === 0 && !selectedProduct && (
-          <p className="no-results">لا توجد نتائج</p>
-        )}
-      </section>
+      {/* 2. COMPANY SELECTOR (Refined & not oversized) */}
+      <div className="compact-card company-card">
+        <label className="field-title">🏢 الشركة المعتمدة</label>
+        <select
+          className="clean-select-input"
+          value={selectedCompany}
+          onChange={e => setSelectedCompany(e.target.value)}
+        >
+          <option value="">-- اضغط لاختيار الشركة --</option>
+          {companies.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
 
-      {/* PRICE DISPLAY */}
+      {/* 3. CENTER VOICE AI BUTTON */}
+      <div className="voice-mic-center-area">
+        <button
+          className="center-mic-glow-btn"
+          onClick={onOpenVoice}
+          title="تحدث مع المساعد الصوتي الذكي"
+        >
+          <div className="mic-inner-circle">🎙️</div>
+          <span className="mic-ripple-wave"></span>
+        </button>
+        <span className="mic-hint-text">اضغط للتحدث مع المساعد الذكي</span>
+      </div>
+
+      {/* 4. PRICE DISPLAY */}
       {selectedProduct && (
-        <section className="price-section">
-          <div className="product-info">
-            <span className="product-name-display">{selectedProduct.name}</span>
-            <span className="product-code-display">{selectedProduct.code}</span>
+        <div className="clean-price-card">
+          <div className="clean-prod-header">
+            <h4>{selectedProduct.name}</h4>
+            <span className="clean-prod-badge">{selectedProduct.code}</span>
           </div>
 
           {!selectedCompany ? (
-            <div className="price-hint">
-              👆 اختر الشركة أولاً لعرض السعر
-            </div>
+            <p className="clean-select-hint">👈 الرجاء اختيار الشركة بالأعلى لعرض السعر</p>
           ) : priceUndefined ? (
-            <div className="price-undefined">
-              <span className="warn-icon">⚠️</span>
-              <span>السعر غير محدد</span>
-              <span className="warn-sub">راجع الإدارة</span>
+            <div className="clean-price-alert">
+              <span className="alert-badge">⚠️ السعر غير محدد</span>
+              <p>راجع الإدارة لتحديث التسعيرة لهذه الشركة</p>
             </div>
           ) : (
-            <div className="price-display">
-              <span className="price-amount">{priceFormatted}</span>
-              <span className="price-currency">ريال</span>
+            <div className="clean-price-tag">
+              <span className="price-num">{priceFormatted}</span>
+              <span className="price-unit">ريال</span>
+              <div className="comp-badge-pill">{selectedCompany}</div>
             </div>
           )}
 
-          {selectedCompany && !priceUndefined && (
-            <div className="company-tag">
-              {selectedCompany}
-            </div>
-          )}
-
-          <button className="btn-new-search" onClick={clearSearch}>
-            🔄 بحث جديد
+          <button className="btn-clean-reset" onClick={clearSearch}>
+            🔄 بحث عن منتج آخر
           </button>
-        </section>
-      )}
-
-      {/* PLACEHOLDER when nothing selected */}
-      {!selectedProduct && !query && (
-        <div className="placeholder-hint">
-          <div className="placeholder-icon">💰</div>
-          <p>اختر الشركة ثم ابحث عن المنتج لعرض السعر</p>
         </div>
       )}
     </main>
@@ -482,10 +541,51 @@ function AssistantView({ companies, products }) {
 }
 
 // ============================================================
-// ADMIN VIEW
+// ADMIN & PIN VIEWS
 // ============================================================
+async function saveToFirebase(companies, products, adminPin) {
+  const productsObj = {};
+  products.forEach(p => {
+    const { id, ...rest } = p;
+    productsObj[id || 'p_' + Date.now()] = rest;
+  });
+  await set(ref(rtdb, 'pricing_hub'), {
+    companies,
+    products: productsObj,
+    adminPin,
+    lastUpdated: Date.now()
+  });
+}
+
+function PinView({ pinInput, setPinInput, pinError, onSubmit, onCancel }) {
+  return (
+    <div className="centered-view">
+      <div className="pin-card">
+        <div className="pin-icon">🔐</div>
+        <h2>دخول لوحة الإدارة</h2>
+        <form onSubmit={onSubmit}>
+          <input
+            type="password"
+            className={`pin-input ${pinError ? 'pin-error' : ''}`}
+            placeholder="رمز الدخول (1234)"
+            value={pinInput}
+            onChange={e => setPinInput(e.target.value)}
+            autoFocus
+            maxLength={8}
+          />
+          {pinError && <p className="error-text">❌ رمز غير صحيح، حاول مجدداً</p>}
+          <div className="pin-actions">
+            <button type="submit" className="btn-primary">دخول</button>
+            <button type="button" className="btn-secondary" onClick={onCancel}>رجوع</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function AdminView({ companies, products, setCompanies, setProducts, adminPin, setAdminPin, firebaseConnected, onSaveToFirebase }) {
-  const [tab, setTab] = useState('products'); // 'products' | 'companies' | 'settings'
+  const [tab, setTab] = useState('products');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [newCompany, setNewCompany] = useState('');
@@ -505,7 +605,7 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
       await onSaveToFirebase(localCompanies, localProducts, adminPin);
       setCompanies(localCompanies);
       setProducts(localProducts);
-      setSaveMsg('✅ تم الحفظ وسيظهر للمساعد فوراً');
+      setSaveMsg('✅ تم الحفظ وتحديث الأجهزة فوراً');
     } catch (e) {
       setSaveMsg('❌ فشل الحفظ: ' + e.message);
     }
@@ -556,13 +656,12 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
     ));
   }
 
-  const filteredProducts = localProducts.filter(p =>
+  const filtered = localProducts.filter(p =>
     !searchAdmin || p.name?.toLowerCase().includes(searchAdmin.toLowerCase()) || p.code?.toLowerCase().includes(searchAdmin.toLowerCase())
   );
 
   return (
     <main className="admin-main">
-      {/* ADMIN HEADER */}
       <div className="admin-header">
         <div className="admin-tabs">
           <button className={`tab-btn ${tab === 'products' ? 'active' : ''}`} onClick={() => setTab('products')}>📦 المنتجات</button>
@@ -572,12 +671,11 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
         <div className="save-area">
           {saveMsg && <span className="save-msg">{saveMsg}</span>}
           <button className="btn-save" onClick={handleSave} disabled={saving}>
-            {saving ? '⏳ جارٍ الحفظ...' : '💾 حفظ وإرسال للمساعد'}
+            {saving ? 'جارٍ الحفظ...' : '💾 حفظ وتحديث'}
           </button>
         </div>
       </div>
 
-      {/* PRODUCTS TAB */}
       {tab === 'products' && (
         <div className="tab-content">
           <div className="products-toolbar">
@@ -592,7 +690,7 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
           </div>
 
           <div className="products-list">
-            {filteredProducts.map(p => (
+            {filtered.map(p => (
               <div key={p.id} className={`product-row ${editingProduct === p.id ? 'editing' : ''}`}>
                 <div className="product-row-header" onClick={() => setEditingProduct(editingProduct === p.id ? null : p.id)}>
                   <div className="product-row-info">
@@ -610,7 +708,7 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
                           value={p.code}
                           onChange={e => updateProduct(p.id, 'code', e.target.value)}
                           onClick={e => e.stopPropagation()}
-                          placeholder="رقم القطعة"
+                          placeholder="الكود"
                         />
                       </>
                     ) : (
@@ -622,7 +720,7 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
                   </div>
                   <div className="product-row-actions" onClick={e => e.stopPropagation()}>
                     <button className="btn-edit-toggle" onClick={() => setEditingProduct(editingProduct === p.id ? null : p.id)}>
-                      {editingProduct === p.id ? '▲ طي' : '✏️ تعديل'}
+                      {editingProduct === p.id ? '▲ حفظ وتصغير' : '✏️ تعديل الأسعار'}
                     </button>
                     <button className="btn-delete" onClick={() => deleteProduct(p.id)}>🗑️</button>
                   </div>
@@ -651,7 +749,6 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
         </div>
       )}
 
-      {/* COMPANIES TAB */}
       {tab === 'companies' && (
         <div className="tab-content">
           <div className="add-company-row">
@@ -674,37 +771,31 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
               </div>
             ))}
           </div>
-          <p className="companies-note">⚠️ حذف شركة سيؤثر على جميع المنتجات المرتبطة بها. اضغط "حفظ" بعد التعديل.</p>
         </div>
       )}
 
-      {/* SETTINGS TAB */}
       {tab === 'settings' && (
         <div className="tab-content settings-content">
           <div className="settings-card">
-            <h3>🔐 تغيير رمز الدخول</h3>
+            <h3>🔐 رمز الإدارة (PIN)</h3>
+            <p className="settings-note">الرمز الحالي: {adminPin}</p>
             <input
               type="password"
               className="pin-input"
-              placeholder="الرمز الجديد"
+              placeholder="الرمز الجديد..."
               value={newPin}
               onChange={e => setNewPin(e.target.value)}
               maxLength={8}
             />
             <button className="btn-primary" onClick={() => {
-              if (newPin.length >= 4) { setAdminPin(newPin); setNewPin(''); setSaveMsg('تم تغيير الرمز - اضغط حفظ'); }
-            }}>تغيير الرمز</button>
-            <p className="settings-note">الرمز الحالي: {adminPin.replace(/./g, '●')}</p>
+              if (newPin.length >= 4) { setAdminPin(newPin); setNewPin(''); setSaveMsg('تم تغيير الرمز - اضغط حفظ وتحديث'); }
+            }}>تحديث الرمز</button>
           </div>
-
           <div className="settings-card">
-            <h3>📡 حالة Firebase</h3>
+            <h3>📡 السحابة (Firebase)</h3>
             <p className={firebaseConnected ? 'status-ok' : 'status-err'}>
-              {firebaseConnected ? '✅ متصل - البيانات تُزامَن لحظياً' : '❌ غير متصل - تعمل محلياً فقط'}
+              {firebaseConnected ? '✅ المزامنة اللحظية مفعلة بنجاح' : '❌ جارٍ محاولة الاتصال...'}
             </p>
-            {!firebaseConnected && (
-              <p className="settings-note">تأكد من إعداد قواعد Firebase وإضافة مسار pricing_hub</p>
-            )}
           </div>
         </div>
       )}
