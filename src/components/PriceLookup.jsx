@@ -121,6 +121,8 @@ export default function PriceLookup() {
   const [quickAddModal, setQuickAddModal] = useState(null); // 'product' | 'company' | null
   const [newProdName, setNewProdName] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
+  const [newProdCompany, setNewProdCompany] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState('');
   const [newCompName, setNewCompName] = useState('');
   const [quickPin, setQuickPin] = useState('');
   const [quickPinErr, setQuickPinErr] = useState(false);
@@ -216,16 +218,44 @@ export default function PriceLookup() {
     let updatedProducts = [...products];
 
     if (quickAddModal === 'product' && newProdName.trim()) {
-      const newProduct = {
-        id: 'p_' + Date.now(),
-        name: newProdName.trim(),
-        code: newProdCode.trim() || ('PRD-' + Date.now().toString().slice(-4)),
-        prices: Object.fromEntries(updatedCompanies.map(c => [c, null]))
-      };
-      updatedProducts = [newProduct, ...updatedProducts];
+      const pName = newProdName.trim();
+      const pCode = newProdCode.trim() || ('PRD-' + Date.now().toString().slice(-4));
+      const targetCompany = newProdCompany || updatedCompanies[0];
+      const parsedPrice = Number(newProdPrice) || null;
+
+      // Check if product already exists (so we add/update the price for this specific company)
+      const existingIdx = updatedProducts.findIndex(p =>
+        p.name?.toLowerCase() === pName.toLowerCase() || (p.code && p.code.toLowerCase() === pCode.toLowerCase())
+      );
+
+      if (existingIdx !== -1) {
+        // Update existing product with this company's price
+        updatedProducts[existingIdx] = {
+          ...updatedProducts[existingIdx],
+          prices: {
+            ...updatedProducts[existingIdx].prices,
+            [targetCompany]: parsedPrice
+          }
+        };
+      } else {
+        // Create new product with this company's price
+        const newProduct = {
+          id: 'p_' + Date.now(),
+          name: pName,
+          code: pCode,
+          prices: Object.fromEntries(updatedCompanies.map(c => [
+            c,
+            c === targetCompany ? parsedPrice : null
+          ]))
+        };
+        updatedProducts = [newProduct, ...updatedProducts];
+      }
+
       setProducts(updatedProducts);
       setNewProdName('');
       setNewProdCode('');
+      setNewProdCompany('');
+      setNewProdPrice('');
     } else if (quickAddModal === 'company' && newCompName.trim()) {
       if (!updatedCompanies.includes(newCompName.trim())) {
         updatedCompanies.push(newCompName.trim());
@@ -353,6 +383,37 @@ export default function PriceLookup() {
                     onChange={e => setNewProdName(e.target.value)}
                     autoFocus
                   />
+
+                  <div className="quick-form-row">
+                    <div className="quick-form-col">
+                      <label>الشركة:</label>
+                      <select
+                        required
+                        className="quick-select-company"
+                        value={newProdCompany}
+                        onChange={e => setNewProdCompany(e.target.value)}
+                      >
+                        <option value="">-- اختر الشركة --</option>
+                        {companies.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="quick-form-col">
+                      <label>السعر (ريال):</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        step="any"
+                        placeholder="مثال: 120"
+                        value={newProdPrice}
+                        onChange={e => setNewProdPrice(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
                   <label>رقم القطعة / الكود (اختياري):</label>
                   <input
                     type="text"

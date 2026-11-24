@@ -754,6 +754,30 @@ html, body {
   gap: 10px;
 }
 
+.quick-form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.quick-form-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quick-select-company {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  background: white;
+  outline: none;
+}
+
 .quick-form label {
   font-size: 0.85rem;
   font-weight: 700;
