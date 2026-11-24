@@ -1,20 +1,5 @@
 import { NextResponse } from 'next/server';
 
-export async function GET(request) {
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
-  if (!apiKey) return NextResponse.json({ error: "No API Key configured" });
-
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    const data = await res.json();
-    return NextResponse.json({
-      activeModelsForYourKey: data.models?.map(m => m.name) || data
-    });
-  } catch (err) {
-    return NextResponse.json({ error: err.message });
-  }
-}
-
 const SYSTEM_INSTRUCTIONS = `
 أنت المساعد الصوتي والذكي الحصري لنظام "مركز إدارة وتسعير المنتجات".
 مهمتك الوحيدة والصارمة:
@@ -79,53 +64,58 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // 1. جلب أول نموذج متاح وفعال بنسبة 100% لمفتاحك من Google مباشرة
-    let chosenModel = 'gemini-3.8-flash';
-    try {
-      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        const modelsList = listData.models || [];
-        // ابحث عن نموذج يدعم generateContent
-        const validModel = modelsList.find(m => m.supportedGenerationMethods?.includes('generateContent') && !m.name.includes('vision') && !m.name.includes('embedding'));
-        if (validModel) {
-          chosenModel = validModel.name.replace('models/', '');
-        }
-      }
-    } catch (e) {
-      console.warn("Could not list models:", e);
-    }
+    // استخدام النموذج المعتمد حصرياً لحسابك gemini-3.8-flash مع هيدر المصادقة الرسمي المباشر
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`;
 
-    // 2. إرسال الطلب للنموذج المعتمد الفعال
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.1
-        }
-      })
-    });
+    let res = null;
+    let errDetail = '';
 
-    if (res.ok) {
-      const data = await res.json();
-      let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
+    // محاولة إرسال الطلب مع معالجة ذكية للضغط
+    for (let i = 0; i < 3; i++) {
       try {
-        return NextResponse.json(JSON.parse(rawText));
-      } catch {
-        return NextResponse.json({ replyText: rawText, action: null });
+        res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+          try {
+            return NextResponse.json(JSON.parse(rawText));
+          } catch {
+            return NextResponse.json({ replyText: rawText, action: null });
+          }
+        }
+
+        errDetail = await res.text();
+        if (res.status === 503) {
+          // انتظار نصف ثانية والمحاولة ثانية في حال كان ضغط لحظي
+          await new Promise(r => setTimeout(r, 600));
+          continue;
+        } else {
+          break;
+        }
+      } catch (e) {
+        errDetail = e.message;
       }
-    } else {
-      const errDetail = await res.text();
-      return NextResponse.json({
-        replyText: `Google (${chosenModel}): ${errDetail}`,
-        error: errDetail
-      });
     }
+
+    return NextResponse.json({
+      replyText: `Google Gemini 3.8: ${errDetail}`,
+      error: errDetail
+    });
 
   } catch (error) {
     console.error("AI route general error:", error);
