@@ -64,11 +64,13 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // Supported official models in order
+    // أحدث وأقوى نماذج Google Gemini الرسمية
     const candidateModels = [
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-pro'
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-flash'
     ];
 
     let lastError = null;
@@ -112,9 +114,9 @@ ${currentContextText}
       }
     }
 
-    // If all models failed, return exact error detail to help user diagnose
+    // Return detailed error if all fail
     return NextResponse.json({
-      replyText: `خطأ من Google Gemini API: ${lastError}`,
+      replyText: `تنبيه من Google Gemini: ${lastError}`,
       error: lastError
     });
 
