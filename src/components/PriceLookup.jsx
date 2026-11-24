@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ref, onValue, set, off } from 'firebase/database';
 import { rtdb } from '../firebase/config';
+import VoiceAssistantModal from './VoiceAssistantModal';
 
 // ============================================================
 // PWA INSTALL PROMPT COMPONENT
@@ -128,6 +129,57 @@ export default function PriceLookup() {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [adminPin, setAdminPin] = useState(DEFAULT_PIN);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+
+  // Apply AI Action (Update price, add product, add company)
+  const handleApplyAiAction = async (action) => {
+    if (!action) return;
+
+    let updatedCompanies = [...companies];
+    let updatedProducts = [...products];
+
+    if (action.type === 'ADD_COMPANY' && action.company) {
+      if (!updatedCompanies.includes(action.company)) {
+        updatedCompanies.push(action.company);
+        setCompanies(updatedCompanies);
+      }
+    } else if (action.type === 'ADD_PRODUCT' && action.productName) {
+      const newId = 'p_' + Date.now();
+      const newProduct = {
+        id: newId,
+        name: action.productName,
+        code: action.productCode || ('PRD-' + Date.now().toString().slice(-4)),
+        prices: Object.fromEntries(updatedCompanies.map(c => [
+          c,
+          c === action.company ? Number(action.price) || null : null
+        ]))
+      };
+      updatedProducts = [newProduct, ...updatedProducts];
+      setProducts(updatedProducts);
+    } else if (action.type === 'UPDATE_PRICE' && action.productName && action.company) {
+      const pIdx = updatedProducts.findIndex(p =>
+        p.name?.toLowerCase().includes(action.productName.toLowerCase()) ||
+        p.code?.toLowerCase() === action.productName.toLowerCase()
+      );
+      if (pIdx !== -1) {
+        updatedProducts[pIdx] = {
+          ...updatedProducts[pIdx],
+          prices: {
+            ...updatedProducts[pIdx].prices,
+            [action.company]: Number(action.price) || null
+          }
+        };
+        setProducts(updatedProducts);
+      }
+    }
+
+    // Save to Firebase immediately
+    try {
+      await saveToFirebase(updatedCompanies, updatedProducts, adminPin);
+    } catch (e) {
+      console.error('Firebase save error from AI action:', e);
+    }
+  };
 
   // Load from Firebase
   useEffect(() => {
@@ -171,6 +223,9 @@ export default function PriceLookup() {
             {firebaseConnected && <span className="live-badge">● مباشر</span>}
           </div>
           <div className="nav-actions">
+            <button className="btn-voice-nav" onClick={() => setIsVoiceOpen(true)} title="المساعد الصوتي">
+              🎙️ صوتي
+            </button>
             {view === 'assistant' ? (
               <button className="btn-admin" onClick={() => setView('pin')}>
                 🔐 الإدارة
@@ -209,6 +264,25 @@ export default function PriceLookup() {
           onSaveToFirebase={saveToFirebase}
         />
       )}
+
+      {/* Floating Mic Button */}
+      <button
+        className="floating-mic-btn"
+        onClick={() => setIsVoiceOpen(true)}
+        aria-label="تحدث مع المساعد الصوتي"
+      >
+        🎙️
+      </button>
+
+      {/* Voice Assistant Modal */}
+      <VoiceAssistantModal
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        companies={companies}
+        products={products}
+        adminPin={adminPin}
+        onApplyAction={handleApplyAiAction}
+      />
     </div>
   );
 }
