@@ -64,60 +64,72 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // قائمة الروابط والنماذج الرسمية المجربة في Google API (v1 و v1beta)
-    const endpointsToTry = [
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`,
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent`
-    ];
+    // 1. استعلام تلقائي عن النماذج المتاحة لمفتاح المستخدم من Google مباشرة
+    let targetModelName = 'models/gemini-1.5-flash';
+    try {
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const availableModels = (listData.models || [])
+          .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+          .map(m => m.name);
 
-    let lastError = null;
+        console.log("Available Gemini models for this key:", availableModels);
 
-    for (const endpoint of endpointsToTry) {
-      try {
-        const response = await fetch(`${endpoint}?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: {
-              temperature: 0.1
-            }
-          })
-        });
+        // اختر الأحدث المتاح (2.5 -> 2.0 -> 1.5 -> أي نموذج متاح)
+        const preferred = availableModels.find(m => m.includes('2.5-flash')) ||
+                          availableModels.find(m => m.includes('2.0-flash')) ||
+                          availableModels.find(m => m.includes('1.5-flash')) ||
+                          availableModels.find(m => m.includes('1.5-pro')) ||
+                          availableModels[0];
 
-        if (response.ok) {
-          const data = await response.json();
-          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          
-          // Clean possible markdown code fences
-          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-          try {
-            const parsed = JSON.parse(rawText);
-            return NextResponse.json(parsed);
-          } catch (jsonErr) {
-            return NextResponse.json({
-              replyText: rawText || "تمت معالجة الطلب بنجاح.",
-              action: null
-            });
-          }
-        } else {
-          const errDetail = await response.text();
-          lastError = `${endpoint} -> [${response.status}]: ${errDetail}`;
-          console.error("Endpoint attempt failed:", lastError);
+        if (preferred) {
+          targetModelName = preferred;
         }
-      } catch (err) {
-        lastError = err.message;
+      } else {
+        const errText = await listRes.text();
+        console.error("ListModels failed:", errText);
       }
+    } catch (e) {
+      console.warn("Could not fetch model list dynamically, falling back to default:", e);
     }
 
-    return NextResponse.json({
-      replyText: `خطأ من Google API: ${lastError}`,
-      error: lastError
+    // 2. إرسال الطلب للنموذج المتاح المكتشف
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/${targetModelName}:generateContent?key=${apiKey}`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          temperature: 0.1
+        }
+      })
     });
+
+    if (response.ok) {
+      const data = await response.json();
+      let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      
+      // Clean possible markdown code fences
+      rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      try {
+        const parsed = JSON.parse(rawText);
+        return NextResponse.json(parsed);
+      } catch (jsonErr) {
+        return NextResponse.json({
+          replyText: rawText || "تمت معالجة الطلب بنجاح.",
+          action: null
+        });
+      }
+    } else {
+      const errDetail = await response.text();
+      return NextResponse.json({
+        replyText: `خطأ من Google API (${targetModelName}): ${errDetail}`,
+        error: errDetail
+      });
+    }
 
   } catch (error) {
     console.error("AI route general error:", error);
