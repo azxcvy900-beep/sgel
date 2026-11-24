@@ -469,19 +469,36 @@ function AssistantView({ companies, products, onOpenVoice }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [copySuccess, setCopySuccess] = useState(false);
   const searchRef = useRef(null);
 
-  // Search logic
+  // Tire & Auto-Parts Pattern Normalizer (e.g. 2257017 or 225 70 17 -> 225/70/17)
+  const normalizeTireSize = (text) => {
+    if (!text) return '';
+    // Match 3 digits, 2 digits, 2 digits (e.g. 2257017, 2656517, 2055516)
+    return text.replace(/(\b\d{3})[\s\.\-]?(\d{2})[\s\.\-]?(\d{2}\b)/g, '$1/$2/$3');
+  };
+
+  // Search logic with tire pattern & fuzzy code search
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
       setSelectedProduct(null);
       return;
     }
-    const q = query.trim().toLowerCase();
-    const found = products.filter(p =>
-      p.name?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q)
-    );
+
+    const rawQ = query.trim().toLowerCase();
+    const normalizedQ = normalizeTireSize(rawQ).toLowerCase();
+
+    const found = products.filter(p => {
+      const pName = (p.name || '').toLowerCase();
+      const pCode = (p.code || '').toLowerCase();
+      return pName.includes(rawQ) ||
+             pCode.includes(rawQ) ||
+             pName.includes(normalizedQ) ||
+             pCode.includes(normalizedQ);
+    });
+
     setResults(found.slice(0, 6));
     setSelectedProduct(null);
   }, [query, products]);
@@ -497,6 +514,7 @@ function AssistantView({ companies, products, onOpenVoice }) {
     setQuery('');
     setResults([]);
     setSelectedProduct(null);
+    setCopySuccess(false);
     searchRef.current?.focus();
   }
 
@@ -506,6 +524,21 @@ function AssistantView({ companies, products, onOpenVoice }) {
 
   const priceFormatted = price !== undefined ? formatPrice(price) : undefined;
   const priceUndefined = price === null || price === undefined || price === 0 || price === '';
+
+  // Copy or Share to WhatsApp
+  const handleCopyQuote = () => {
+    if (!selectedProduct || !selectedCompany || priceUndefined) return;
+    const textToShare = `سعر ${selectedProduct.name} (${selectedProduct.code || ''}) لدى ${selectedCompany} هو ${priceFormatted} ريال.`;
+    navigator.clipboard?.writeText(textToShare);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2500);
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!selectedProduct || !selectedCompany || priceUndefined) return;
+    const textToShare = `السلام عليكم، سعر ${selectedProduct.name} لدى ${selectedCompany} هو ${priceFormatted} ريال.`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(textToShare)}`, '_blank');
+  };
 
   return (
     <main className="assistant-container">
@@ -589,6 +622,17 @@ function AssistantView({ companies, products, onOpenVoice }) {
               <span className="price-num">{priceFormatted}</span>
               <span className="price-unit">ريال</span>
               <div className="comp-badge-pill">{selectedCompany}</div>
+            </div>
+          )}
+
+          {price && !priceUndefined && (
+            <div className="share-actions-group">
+              <button className="btn-action-copy" onClick={handleCopyQuote}>
+                {copySuccess ? '✅ تم النسخ' : '📋 نسخ السعر للعميل'}
+              </button>
+              <button className="btn-action-wa" onClick={handleShareWhatsApp}>
+                💬 واتساب
+              </button>
             </div>
           )}
 

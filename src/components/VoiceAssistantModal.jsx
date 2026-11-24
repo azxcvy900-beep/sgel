@@ -12,18 +12,21 @@ export default function VoiceAssistantModal({
   clientApiKey
 }) {
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: 'مرحباً بك! أنا مساعد التسعير الصوتي. اسألني عن أي سعر، أو اطلب إضافة أو تعديل منتج أو شركة برمز التأكيد (1234).'
+      text: 'مرحباً بك! أنا مساعد التسعير الصوتي. اسألني عن أي سعر أو منتج أو شركة، أو اطلب التعديل برمز الإدارة (1234).'
     }
   ]);
   const [pendingAction, setPendingAction] = useState(null);
   const [pinInput, setPinInput] = useState('');
   const [loading, setLoading] = useState(false);
+
   const recognitionRef = useRef(null);
   const chatBottomRef = useRef(null);
+  const audioPlayerRef = useRef(null);
 
   // Auto scroll
   useEffect(() => {
@@ -59,24 +62,74 @@ export default function VoiceAssistantModal({
     }
   }, [companies, products, adminPin, pendingAction]);
 
-  const speak = (text) => {
+  // Human-like Natural Voice Synthesis
+  const speakNatural = async (text) => {
+    try {
+      // 1. Try Google Neural Audio endpoint
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          audioPlayerRef.current = audio;
+          setIsSpeaking(true);
+          audio.onended = () => setIsSpeaking(false);
+          audio.onerror = () => setIsSpeaking(false);
+          await audio.play();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Neural TTS fallback to browser natural voice:", e);
+    }
+
+    // 2. High Quality Browser Synthesis Fallback (Filter for Natural / Premium Voices)
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(text.replace(/[\*\#\•]/g, ''));
       utterance.lang = 'ar-SA';
-      utterance.rate = 1.05;
+      utterance.rate = 0.98;
+      utterance.pitch = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      // Look for natural human sounding Arabic voices (Google, Maged, Tariq, Naayf)
+      const naturalVoice = voices.find(v =>
+        (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('EG')) &&
+        (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online') || v.name.includes('Maged'))
+      ) || voices.find(v => v.lang.startsWith('ar'));
+
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+      }
+
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+
       window.speechSynthesis.speak(utterance);
     }
   };
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      alert('المتصفح لا يدعم التسجيل الصوتي المباشر، يمكنك الكتابة في الأسفل.');
+      alert('المتصفح الحالي لا يدعم التسجيل الصوتي المباشر، يمكنك الكتابة في الأسفل.');
       return;
     }
     if (isListening) {
       recognitionRef.current.stop();
     } else {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        setIsSpeaking(false);
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       setTranscript('');
       try {
         recognitionRef.current.start();
@@ -112,7 +165,7 @@ export default function VoiceAssistantModal({
 
       if (data.replyText) {
         setMessages((prev) => [...prev, { sender: 'ai', text: data.replyText }]);
-        speak(data.replyText);
+        speakNatural(data.replyText);
       }
 
       if (data.action) {
@@ -125,9 +178,9 @@ export default function VoiceAssistantModal({
       }
     } catch {
       setLoading(false);
-      const errMsg = 'عذراً، حدث خطأ في الاتصال.';
+      const errMsg = 'عذراً، حدث خطأ أثناء معالجة الطلب.';
       setMessages((prev) => [...prev, { sender: 'ai', text: errMsg }]);
-      speak(errMsg);
+      speakNatural(errMsg);
     }
   };
 
@@ -136,16 +189,16 @@ export default function VoiceAssistantModal({
     if (pinInput === adminPin) {
       if (pendingAction) {
         onApplyAction(pendingAction);
-        const successText = 'تم تأكيد الرمز 1234 وتنفيذ العملية بنجاح وتحديث الأسعار!';
+        const successText = 'تم تأكيد الرمز وتنفيذ العملية بنجاح وتحديث الأسعار!';
         setMessages((prev) => [...prev, { sender: 'ai', text: successText }]);
-        speak(successText);
+        speakNatural(successText);
         setPendingAction(null);
         setPinInput('');
       }
     } else {
       const failText = 'رمز التأكيد غير صحيح!';
       setMessages((prev) => [...prev, { sender: 'ai', text: failText }]);
-      speak(failText);
+      speakNatural(failText);
       setPinInput('');
     }
   };
@@ -158,15 +211,16 @@ export default function VoiceAssistantModal({
         {/* Header */}
         <div className="voice-modal-header">
           <div className="voice-header-title">
-            <span className="voice-pulse-indicator"></span>
-            <h3>المساعد الصوتي الذكي</h3>
+            <span className={`voice-pulse-indicator ${isSpeaking ? 'speaking' : ''}`}></span>
+            <h3>المساعد الصوتي البشري</h3>
+            {isSpeaking && <span className="speaking-tag">🔊 يتحدث...</span>}
           </div>
           <button className="btn-close-modal" onClick={onClose}>✕</button>
         </div>
 
-        {/* Dynamic Voice Visualizer Wave when listening */}
-        {isListening && (
-          <div className="voice-wave-container">
+        {/* Dynamic Voice Visualizer Wave when listening or speaking */}
+        {(isListening || isSpeaking) && (
+          <div className={`voice-wave-container ${isSpeaking ? 'speaking-wave' : ''}`}>
             <span className="wave-bar"></span>
             <span className="wave-bar"></span>
             <span className="wave-bar"></span>
@@ -174,7 +228,9 @@ export default function VoiceAssistantModal({
             <span className="wave-bar"></span>
             <span className="wave-bar"></span>
             <span className="wave-bar"></span>
-            <p className="wave-status">جارٍ الاستماع لصوتك الآن...</p>
+            <p className="wave-status">
+              {isListening ? 'جارٍ الاستماع لصوتك...' : 'المساعد الصوتي يجيبك الآن...'}
+            </p>
           </div>
         )}
 
@@ -182,7 +238,7 @@ export default function VoiceAssistantModal({
         <div className="voice-chat-box">
           {messages.map((m, idx) => (
             <div key={idx} className={`voice-bubble ${m.sender}`}>
-              {m.text}
+              <div className="bubble-content" style={{ whiteSpace: 'pre-line' }}>{m.text}</div>
             </div>
           ))}
           {loading && (
