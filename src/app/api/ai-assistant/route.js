@@ -64,50 +64,77 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // قائمة النماذج مع وضع gemini-3.8-flash الموصى به رسمياً في المقدمة
-    const modelsToTry = [
-      'models/gemini-3.8-flash',
-      'models/gemini-3.8-pro',
-      'models/gemini-2.5-flash',
-      'models/gemini-2.0-flash'
-    ];
-
     let lastError = null;
 
-    for (const modelName of modelsToTry) {
+    // 1. تجربة Google Interactions API الجديدة لـ gemini-3.8-flash أولاً
+    try {
+      const interactionsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gemini-3.8-flash',
+          input: userPrompt
+        })
+      });
+
+      if (interactionsRes.ok) {
+        const data = await interactionsRes.json();
+        // قراءة النتيجة من Interactions API
+        let rawText = '';
+        if (data.outputs && data.outputs.length > 0) {
+          rawText = data.outputs[0]?.text || data.outputs[0]?.content || JSON.stringify(data.outputs[0]);
+        } else if (data.text) {
+          rawText = data.text;
+        } else if (data.response) {
+          rawText = data.response;
+        } else {
+          rawText = JSON.stringify(data);
+        }
+
+        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        try {
+          return NextResponse.json(JSON.parse(rawText));
+        } catch {
+          return NextResponse.json({ replyText: rawText, action: null });
+        }
+      } else {
+        const errText = await interactionsRes.text();
+        lastError = `Interactions API [${interactionsRes.status}]: ${errText}`;
+        console.warn("Interactions API not directly available, checking generateContent endpoints...");
+      }
+    } catch (e) {
+      lastError = `Interactions error: ${e.message}`;
+    }
+
+    // 2. تجربة generateContent لنموذج gemini-3.8-flash
+    const candidateEndpoints = [
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-3.8-flash:generateContent`
+    ];
+
+    for (const ep of candidateEndpoints) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`;
-        const response = await fetch(endpoint, {
+        const res = await fetch(`${ep}?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: {
-              temperature: 0.1
-            }
+            generationConfig: { temperature: 0.1 }
           })
         });
 
-        if (response.ok) {
-          const data = await response.json();
+        if (res.ok) {
+          const data = await res.json();
           let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          
-          // Clean possible markdown code fences
           rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
           try {
-            const parsed = JSON.parse(rawText);
-            return NextResponse.json(parsed);
-          } catch (jsonErr) {
-            return NextResponse.json({
-              replyText: rawText || "تمت معالجة الطلب بنجاح.",
-              action: null
-            });
+            return NextResponse.json(JSON.parse(rawText));
+          } catch {
+            return NextResponse.json({ replyText: rawText, action: null });
           }
         } else {
-          const errDetail = await response.text();
-          lastError = `${modelName} -> [${response.status}]: ${errDetail}`;
-          console.error("Model failed, trying next:", lastError);
+          const detail = await res.text();
+          lastError = `${ep} -> [${res.status}]: ${detail}`;
         }
       } catch (err) {
         lastError = err.message;
