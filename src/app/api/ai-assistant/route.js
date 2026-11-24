@@ -64,20 +64,20 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // أحدث وأقوى نماذج Google Gemini الرسمية
-    const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-flash'
+    // قائمة الروابط والنماذج الرسمية المجربة في Google API (v1 و v1beta)
+    const endpointsToTry = [
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent`
     ];
 
     let lastError = null;
 
-    for (const model of candidateModels) {
+    for (const endpoint of endpointsToTry) {
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        const response = await fetch(`${endpoint}?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -106,17 +106,16 @@ ${currentContextText}
           }
         } else {
           const errDetail = await response.text();
-          lastError = `[${model}] HTTP ${response.status}: ${errDetail}`;
-          console.error("Gemini model error:", model, lastError);
+          lastError = `${endpoint} -> [${response.status}]: ${errDetail}`;
+          console.error("Endpoint attempt failed:", lastError);
         }
       } catch (err) {
         lastError = err.message;
       }
     }
 
-    // Return detailed error if all fail
     return NextResponse.json({
-      replyText: `تنبيه من Google Gemini: ${lastError}`,
+      replyText: `خطأ من Google API: ${lastError}`,
       error: lastError
     });
 
