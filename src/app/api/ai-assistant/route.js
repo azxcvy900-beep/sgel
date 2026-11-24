@@ -12,8 +12,8 @@ const SYSTEM_INSTRUCTIONS = `
 - عند الاستفسار عن سعر: أعطِ السعر المعتمد للشركة المطلوبة بدقة، وإذا لم يكن مسجلاً قل: "السعر غير محدد لهذه الشركة، يرجى مراجعة الإدارة".
 - عند طلب (إضافة منتج، تعديل سعر، إضافة شركة): هذه عمليات حساسة. إذا لم يقم المستخدم بتضمين رمز التأكيد الصحيح، اطلب منه الرمز ولا تقم بتنفيذ الأمر.
 
-صيغة الإجابة (JSON Mandatory when performing actions):
-يجب أن ترجع الإجابة دائماً بنص واضح ومباشر، وإذا كان هناك إجراء مطلوب تنفيذه، قم بتضمين كائن JSON مخصص للأمر:
+صيغة الإجابة (JSON Mandatory):
+يجب أن ترجع الإجابة دائماً بنص واضح ومباشر بصيغة JSON:
 {
   "replyText": "النص الذي سيقال للمستخدم بالصوت",
   "action": null | {
@@ -32,11 +32,11 @@ export async function POST(request) {
     const body = await request.json();
     const { message, context, pinProvided, apiKey: clientApiKey } = body;
 
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = (clientApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
 
     if (!apiKey) {
       return NextResponse.json({
-        replyText: "لم يتم ضبط مفتاح Gemini API في المتغيرات البيئية أو الإعدادات.",
+        replyText: "لم يتم العثور على مفتاح GEMINI_API_KEY في Vercel. يرجى التأكد من حفظه وعمل Redeploy.",
         isConfigError: true
       });
     }
@@ -61,58 +61,67 @@ ${currentContextText}
 رسالة المستخدم: "${message}"
 
 رد بصيغة JSON فقط:
-{"replyText": "...", "action": ...}
+{"replyText": "...", "action": null}
 `;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: "application/json"
-        }
-      })
-    });
+    // Supported official models in order
+    const candidateModels = [
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-pro'
+    ];
 
-    if (!response.ok) {
-      // Fallback to gemini-1.5-flash if 2.5 is not accessible
-      const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: "application/json"
+    let lastError = null;
+
+    for (const model of candidateModels) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          // Clean possible markdown code fences
+          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+          try {
+            const parsed = JSON.parse(rawText);
+            return NextResponse.json(parsed);
+          } catch (jsonErr) {
+            return NextResponse.json({
+              replyText: rawText || "تمت معالجة الطلب بنجاح.",
+              action: null
+            });
           }
-        })
-      });
-
-      if (!fallbackRes.ok) {
-        const errText = await fallbackRes.text();
-        return NextResponse.json({
-          replyText: "حدث خطأ في الاتصال بـ Gemini API، يرجى التأكد من صلاحية المفتاح.",
-          error: errText
-        }, { status: 500 });
+        } else {
+          const errDetail = await response.text();
+          lastError = `[${model}] HTTP ${response.status}: ${errDetail}`;
+          console.error("Gemini model error:", model, lastError);
+        }
+      } catch (err) {
+        lastError = err.message;
       }
-
-      const fbData = await fallbackRes.json();
-      const rawText = fbData?.candidates?.[0]?.content?.parts?.[0]?.text;
-      const parsed = JSON.parse(rawText || '{}');
-      return NextResponse.json(parsed);
     }
 
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const parsed = JSON.parse(rawText || '{}');
-    return NextResponse.json(parsed);
+    // If all models failed, return exact error detail to help user diagnose
+    return NextResponse.json({
+      replyText: `خطأ من Google Gemini API: ${lastError}`,
+      error: lastError
+    });
 
   } catch (error) {
-    console.error("AI route error:", error);
+    console.error("AI route general error:", error);
     return NextResponse.json({
-      replyText: "تعذر معالجة الطلب حالياً، الرجاء المحاولة مجدداً.",
+      replyText: `خطأ في الخادم: ${error.message}`,
       error: error.message
     }, { status: 500 });
   }
