@@ -64,72 +64,60 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // 1. استعلام تلقائي عن النماذج المتاحة لمفتاح المستخدم من Google مباشرة
-    let targetModelName = 'models/gemini-1.5-flash';
-    try {
-      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        const availableModels = (listData.models || [])
-          .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
-          .map(m => m.name);
+    // قائمة النماذج مع وضع gemini-3.8-flash الموصى به رسمياً في المقدمة
+    const modelsToTry = [
+      'models/gemini-3.8-flash',
+      'models/gemini-3.8-pro',
+      'models/gemini-2.5-flash',
+      'models/gemini-2.0-flash'
+    ];
 
-        console.log("Available Gemini models for this key:", availableModels);
+    let lastError = null;
 
-        // اختر الأحدث المتاح (2.5 -> 2.0 -> 1.5 -> أي نموذج متاح)
-        const preferred = availableModels.find(m => m.includes('2.5-flash')) ||
-                          availableModels.find(m => m.includes('2.0-flash')) ||
-                          availableModels.find(m => m.includes('1.5-flash')) ||
-                          availableModels.find(m => m.includes('1.5-pro')) ||
-                          availableModels[0];
-
-        if (preferred) {
-          targetModelName = preferred;
-        }
-      } else {
-        const errText = await listRes.text();
-        console.error("ListModels failed:", errText);
-      }
-    } catch (e) {
-      console.warn("Could not fetch model list dynamically, falling back to default:", e);
-    }
-
-    // 2. إرسال الطلب للنموذج المتاح المكتشف
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/${targetModelName}:generateContent?key=${apiKey}`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.1
-        }
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
-      // Clean possible markdown code fences
-      rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
+    for (const modelName of modelsToTry) {
       try {
-        const parsed = JSON.parse(rawText);
-        return NextResponse.json(parsed);
-      } catch (jsonErr) {
-        return NextResponse.json({
-          replyText: rawText || "تمت معالجة الطلب بنجاح.",
-          action: null
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature: 0.1
+            }
+          })
         });
+
+        if (response.ok) {
+          const data = await response.json();
+          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          // Clean possible markdown code fences
+          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+          try {
+            const parsed = JSON.parse(rawText);
+            return NextResponse.json(parsed);
+          } catch (jsonErr) {
+            return NextResponse.json({
+              replyText: rawText || "تمت معالجة الطلب بنجاح.",
+              action: null
+            });
+          }
+        } else {
+          const errDetail = await response.text();
+          lastError = `${modelName} -> [${response.status}]: ${errDetail}`;
+          console.error("Model failed, trying next:", lastError);
+        }
+      } catch (err) {
+        lastError = err.message;
       }
-    } else {
-      const errDetail = await response.text();
-      return NextResponse.json({
-        replyText: `خطأ من Google API (${targetModelName}): ${errDetail}`,
-        error: errDetail
-      });
     }
+
+    return NextResponse.json({
+      replyText: `تنبيه من Google: ${lastError}`,
+      error: lastError
+    });
 
   } catch (error) {
     console.error("AI route general error:", error);
