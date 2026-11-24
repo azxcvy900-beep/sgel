@@ -1,5 +1,20 @@
 import { NextResponse } from 'next/server';
 
+export async function GET(request) {
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
+  if (!apiKey) return NextResponse.json({ error: "No API Key configured" });
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const data = await res.json();
+    return NextResponse.json({
+      activeModelsForYourKey: data.models?.map(m => m.name) || data
+    });
+  } catch (err) {
+    return NextResponse.json({ error: err.message });
+  }
+}
+
 const SYSTEM_INSTRUCTIONS = `
 أنت المساعد الصوتي والذكي الحصري لنظام "مركز إدارة وتسعير المنتجات".
 مهمتك الوحيدة والصارمة:
@@ -64,56 +79,53 @@ ${currentContextText}
 {"replyText": "...", "action": null}
 `;
 
-    // قائمة نماذج Google الحديثة بالترتيب مع تجنب أخطاء الضغط 503
-    const models = [
-      'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash'
-    ];
-
-    let lastError = null;
-
-    for (const model of models) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: {
-              temperature: 0.1
-            }
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-          try {
-            return NextResponse.json(JSON.parse(rawText));
-          } catch {
-            return NextResponse.json({ replyText: rawText, action: null });
-          }
+    // 1. جلب أول نموذج متاح وفعال بنسبة 100% لمفتاحك من Google مباشرة
+    let chosenModel = 'gemini-3.8-flash';
+    try {
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const modelsList = listData.models || [];
+        // ابحث عن نموذج يدعم generateContent
+        const validModel = modelsList.find(m => m.supportedGenerationMethods?.includes('generateContent') && !m.name.includes('vision') && !m.name.includes('embedding'));
+        if (validModel) {
+          chosenModel = validModel.name.replace('models/', '');
         }
-
-        // إذا كان هناك ضغط 503 أو غير متوفر 404، جرب النموذج التالي فوراً
-        const errDetail = await res.text();
-        lastError = `[${model}] HTTP ${res.status}: ${errDetail}`;
-        console.warn(`Model ${model} returned ${res.status}, trying next fallback model...`);
-
-      } catch (err) {
-        lastError = err.message;
       }
+    } catch (e) {
+      console.warn("Could not list models:", e);
     }
 
-    return NextResponse.json({
-      replyText: `سيرفرات الذكاء الاصطناعي تحت ضغط شديد حالياً، يرجى المحاولة بعد قليل.`,
-      error: lastError
+    // 2. إرسال الطلب للنموذج المعتمد الفعال
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          temperature: 0.1
+        }
+      })
     });
+
+    if (res.ok) {
+      const data = await res.json();
+      let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      try {
+        return NextResponse.json(JSON.parse(rawText));
+      } catch {
+        return NextResponse.json({ replyText: rawText, action: null });
+      }
+    } else {
+      const errDetail = await res.text();
+      return NextResponse.json({
+        replyText: `Google (${chosenModel}): ${errDetail}`,
+        error: errDetail
+      });
+    }
 
   } catch (error) {
     console.error("AI route general error:", error);
