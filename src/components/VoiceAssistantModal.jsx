@@ -81,6 +81,7 @@ export default function VoiceAssistantModal({
         const data = await res.json();
         if (data.audioBase64) {
           const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          audio.playbackRate = 1.15; // Natural realistic conversational pace
           audioPlayerRef.current = audio;
           audio.onended = () => setIsSpeaking(false);
           audio.onerror = () => setIsSpeaking(false);
