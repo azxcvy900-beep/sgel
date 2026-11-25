@@ -2,219 +2,189 @@ import { NextResponse } from 'next/server';
 
 const SYSTEM_INSTRUCTIONS = `
 أنت المساعد الصوتي والذكي الحصري لنظام "مركز إدارة وتسعير المنتجات".
-مهمتك الصارمة:
-1. الاستعلام الذكي عن الأسعار والمنتجات والشركات.
+مهمتك:
+1. الاستعلام الذكي عن أسعار المنتجات والشركات.
 2. إضافة أو تعديل المنتجات، الأسعار، أو الشركات فقط عند توفر رمز التأكيد الإداري (1234).
 
-قواعد ذكاء الاستعلام الصارمة:
-- إذا ذكر المستخدم منتجاً دون تحديد الشركة: اعرض أسعار هذا المنتج لدى جميع الشركات المسجلة التي لديها تسعيرة معتمدة له.
-- إذا ذكر المستخدم شركة دون تحديد المنتج: اعرض أسعار المنتجات المعتمدة لهذه الشركة.
-- الفهم الذكي للأسماء المختصرة (مثل: "225/70/17جدة" أو "حلول الطاقة" لشركة "حلول خط الطاقة").
-- في حال وجود تشابه أو التباس بين شركتين أو منتجين: توقف ونبه المستخدم فوراً واطلب منه التحديد.
+قواعد استخراج الأوامر بذكاء تام:
+- إذا قال المستخدم: "اضف منتج [اسم المنتج] شركة [اسم الشركة] سعر [السعر]":
+  قم باستخراج اسم المنتج، واسم الشركة، والسعر فوراً.
+  واطلب منه رمز التأكيد 1234 لتنفيذ العملية.
 
-الصيغة:
-JSON:
-{
-  "replyText": "...",
-  "action": null | { ... }
-}
+- إذا ذكر المستخدم منتجاً فقط: اعرض أسعاره لجميع الشركات.
+- إذا ذكر شركة فقط: اعرض أسعار منتجاتها.
 `;
 
-// Helper: Normalize Arabic string for super-smart fuzzy matching
-function normalizeText(str) {
+function normalize(str) {
   if (!str) return '';
   return str
     .toLowerCase()
     .replace(/[أإآ]/g, 'ا')
     .replace(/[ة]/g, 'ه')
     .replace(/[ى]/g, 'ي')
-    .replace(/[\u064B-\u065F]/g, '') // remove tashkeel
-    .replace(/شركة\s+/g, '') // strip optional 'شركة'
-    .replace(/[_\-\/\s]+/g, ' ')
+    .replace(/[\u064B-\u065F]/g, '')
     .trim();
-}
-
-// Find matching companies with ambiguity check
-function matchCompanies(query, companies) {
-  const normQ = normalizeText(query);
-  const words = normQ.split(' ').filter(w => w.length > 1);
-
-  const matched = companies.filter(c => {
-    const normC = normalizeText(c);
-    // Exact or direct inclusion
-    if (normC.includes(normQ) || normQ.includes(normC)) return true;
-    // Check if key words of company are all in query or vice versa
-    const cWords = normC.split(' ').filter(w => w.length > 1);
-    const matchesCount = cWords.filter(cw => normQ.includes(cw)).length;
-    return matchesCount >= Math.min(cWords.length, 2);
-  });
-
-  return matched;
-}
-
-// Find matching products
-function matchProduct(query, products) {
-  const normQ = normalizeText(query);
-  const qClean = query.toLowerCase().replace(/[\s\/\-_]/g, '');
-
-  let found = products.find(p => {
-    const normP = normalizeText(p.name);
-    const codeClean = (p.code || '').toLowerCase().replace(/[\s\/\-_]/g, '');
-    const nameClean = (p.name || '').toLowerCase().replace(/[\s\/\-_]/g, '');
-
-    return normQ.includes(normP) ||
-           normP.includes(normQ) ||
-           qClean.includes(nameClean) ||
-           (codeClean && qClean.includes(codeClean));
-  });
-
-  // If not found directly, check by tokens (e.g. 225/70/17)
-  if (!found) {
-    const tokens = query.split(/[\s,،]+/).filter(t => t.length >= 2);
-    found = products.find(p => {
-      const pFull = `${p.name} ${p.code || ''}`.toLowerCase();
-      return tokens.some(t => pFull.includes(t.toLowerCase()));
-    });
-  }
-
-  return found;
 }
 
 function processSmartQuery(message, context, pinProvided) {
   const products = context?.products || [];
   const companies = context?.companies || [];
   const adminPin = context?.adminPin || '1234';
-  const q = (message || '').trim();
+  const rawMsg = (message || '').trim();
+  const normMsg = normalize(rawMsg);
 
-  // 1. Check for Chit-chat (Strictly business)
+  // 1. FILTER GENERAL CHAT
   const nonBusiness = ['نكتة', 'قصة', 'طبخ', 'سياسة', 'دين', 'اخبار', 'شخبارك', 'كيفك'];
-  if (nonBusiness.some(w => normalizeText(q).includes(normalizeText(w)))) {
+  if (nonBusiness.some(w => normMsg.includes(w))) {
     return {
       replyText: "عذراً، أنا مخصص فقط لإدارة وتسعير منتجات وشركات المركز.",
       action: null
     };
   }
 
-  // 2. Add Company Intent
-  if (q.includes('أضف شركة') || q.includes('اضف شركه') || q.includes('إضافة شركة') || q.includes('شركه جديده')) {
-    const cName = q.replace(/أضف شركة|اضف شركه|إضافة شركة|شركه جديده/g, '').replace(/اسمها|اسم/g, '').trim();
-    if (!cName) return { replyText: "يرجى تحديد اسم الشركة التي ترغب بإضافتها.", action: null };
+  // 2. DETECT COMPOUND "ADD / UPDATE PRODUCT + COMPANY + PRICE"
+  // Example: "اضف المنتج و الشركة برجستون 225/70/17 شركة صباح ستور 990 قبل الضريبة"
+  const isAddOrUpdate = normMsg.includes('اضف') || normMsg.includes('سجل') || normMsg.includes('عدل') || normMsg.includes('غير') || normMsg.includes('حط');
 
-    if (pinProvided !== adminPin) {
-      return {
-        replyText: `لإضافة شركة "${cName}"، يرجى تأكيد العملية برمز الإدارة (1234).`,
-        action: { type: 'ADD_COMPANY', company: cName, requiresPin: true }
-      };
-    }
-    return {
-      replyText: `تمت إضافة شركة "${cName}" بنجاح إلى النظام.`,
-      action: { type: 'ADD_COMPANY', company: cName, requiresPin: false }
-    };
-  }
+  if (isAddOrUpdate) {
+    // Extract Price Number
+    const priceMatch = rawMsg.match(/\b\d+(\.\d+)?\b/);
+    const price = priceMatch ? Number(priceMatch[0]) : null;
 
-  // 3. Add / Update Product Price Intent (Requires PIN)
-  if (q.includes('سعر') && (q.includes('سجل') || q.includes('عدل') || q.includes('غير') || q.includes('حط') || q.includes('اضف'))) {
-    const numMatch = q.match(/\d+(\.\d+)?/);
-    const price = numMatch ? Number(numMatch[0]) : null;
-    const targetProduct = matchProduct(q, products);
-    const matchedCompanies = matchCompanies(q, companies);
+    // Extract Company (Check if message contains "شركة ..." or an existing company)
+    let companyName = null;
+    const compRegex = /(?:شركة|شركه)\s+([\u0621-\u064A\w\s]+?)(?=\s+\d|\s+سعر|\s+بـ|\s+بسعر|\s+قبل|$)/i;
+    const compMatch = rawMsg.match(compRegex);
 
-    if (matchedCompanies.length > 1) {
-      return {
-        replyText: `⚠️ يوجد تشابه بين الشركات التالية: (${matchedCompanies.join('، ')}). يرجى توضيح اسم الشركة بدقة لتحديد السعر.`,
-        action: null
-      };
+    if (compMatch && compMatch[1]) {
+      companyName = compMatch[1].trim();
+    } else {
+      // Check existing companies
+      const foundComp = companies.find(c => normMsg.includes(normalize(c)));
+      if (foundComp) companyName = foundComp;
     }
 
-    const targetCompany = matchedCompanies[0];
+    // Extract Product Name
+    let prodName = rawMsg
+      .replace(/اضف|أضف|سجل|عدل|غير|حط|المنتج|منتج|و\s*الشركة|و\s*الشركه/gi, '')
+      .replace(new RegExp(`(?:شركة|شركه)\\s+${companyName || ''}`, 'gi'), '')
+      .replace(new RegExp(`${companyName || ''}`, 'gi'), '')
+      .replace(/\b\d+(\.\d+)?\b/g, '')
+      .replace(/قبل الضريبة|شامل الضريبة|ريال|بسعر|بـ|سعر/gi, '')
+      .trim();
 
-    if (targetProduct && targetCompany && price) {
+    // Clean extra punctuation
+    prodName = prodName.replace(/^[\s,،\-]+|[\s,،\-]+$/g, '');
+
+    // Case A: Full Add / Update request
+    if (prodName && (companyName || price)) {
+      const finalComp = companyName || companies[0] || 'الشركة العامة';
+      const finalPrice = price || 0;
+
       if (pinProvided !== adminPin) {
         return {
-          replyText: `لتسجيل سعر ${targetProduct.name} لـ "${targetCompany}" بـ ${price} ريال، يرجى تأكيد رمز الإدارة (1234).`,
-          action: { type: 'UPDATE_PRICE', productName: targetProduct.name, company: targetCompany, price, requiresPin: true }
+          replyText: `لتأكيد إضافة منتج "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال، يرجى إدخال رمز الإدارة 1234.`,
+          action: {
+            type: 'ADD_PRODUCT',
+            productName: prodName,
+            company: finalComp,
+            price: finalPrice,
+            requiresPin: true
+          }
+        };
+      } else {
+        return {
+          replyText: `تم بنجاح تسجيل "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال وتحديث النظام.`,
+          action: {
+            type: 'ADD_PRODUCT',
+            productName: prodName,
+            company: finalComp,
+            price: finalPrice,
+            requiresPin: false
+          }
         };
       }
-      return {
-        replyText: `تم تحديث سعر ${targetProduct.name} لـ "${targetCompany}" إلى ${price} ريال وحفظه في النظام.`,
-        action: { type: 'UPDATE_PRICE', productName: targetProduct.name, company: targetCompany, price, requiresPin: false }
-      };
+    }
+
+    // Case B: Only Add Company request (e.g. "أضف شركة صباح ستور")
+    if (normMsg.includes('شرك') && !prodName) {
+      const cMatch = rawMsg.replace(/اضف|أضف|سجل|شركه|شركة|جديده|جديدة/gi, '').trim();
+      if (cMatch) {
+        if (pinProvided !== adminPin) {
+          return {
+            replyText: `لإضافة شركة "${cMatch}"، يرجى تأكيد العملية برمز الإدارة 1234.`,
+            action: { type: 'ADD_COMPANY', company: cMatch, requiresPin: true }
+          };
+        }
+        return {
+          replyText: `تمت إضافة شركة "${cMatch}" بنجاح إلى النظام.`,
+          action: { type: 'ADD_COMPANY', company: cMatch, requiresPin: false }
+        };
+      }
     }
   }
 
-  // 4. SMART QUERY LOGIC
-  const matchedCompanies = matchCompanies(q, companies);
-  const targetProduct = matchProduct(q, products);
+  // 3. SEARCH / QUERY LOGIC
+  // A. Check if query matches a known company
+  const matchedCompany = companies.find(c => normMsg.includes(normalize(c)));
 
-  // Case A: Ambiguity in company name!
-  if (matchedCompanies.length > 1) {
-    return {
-      replyText: `⚠️ تنبيه: الاسم الذي ذكرته ينطبق على أكثر من شركة: (${matchedCompanies.join(' - ')}). يرجى التحديد لتجنب الخطأ في التسعير.`,
-      action: null
-    };
-  }
+  // B. Check if query matches a product (Direct or tire size e.g. 225/70/17)
+  const matchedProduct = products.find(p => {
+    const pNorm = normalize(p.name);
+    const pCode = (p.code || '').toLowerCase();
+    const cleanTokens = normMsg.split(/[\s,،]+/);
+    return normMsg.includes(pNorm) || (pCode && normMsg.includes(pCode)) || cleanTokens.some(t => t.length > 3 && pNorm.includes(t));
+  });
 
-  const singleCompany = matchedCompanies[0];
-
-  // Case B: Both Product AND Company are specified (even if concatenated like "225/70/17جدة")
-  if (targetProduct && singleCompany) {
-    const price = targetProduct.prices?.[singleCompany];
+  // Query: Both Product and Company
+  if (matchedProduct && matchedCompany) {
+    const price = matchedProduct.prices?.[matchedCompany];
     if (price !== null && price !== undefined && price !== '' && price !== 0) {
       return {
-        replyText: `سعر ${targetProduct.name} لدى "${singleCompany}" هو ${price} ريال.`,
-        action: { type: 'SEARCH_PRICE', productName: targetProduct.name, company: singleCompany, price }
+        replyText: `سعر ${matchedProduct.name} لدى "${matchedCompany}" هو ${price} ريال.`,
+        action: { type: 'SEARCH_PRICE', productName: matchedProduct.name, company: matchedCompany, price }
       };
     } else {
       return {
-        replyText: `⚠️ السعر غير محدد لـ ${targetProduct.name} لدى "${singleCompany}"، يرجى مراجعة الإدارة.`,
+        replyText: `السعر غير محدد لـ ${matchedProduct.name} لدى "${matchedCompany}"، يرجى مراجعة الإدارة.`,
         action: null
       };
     }
   }
 
-  // Case C: ONLY Product is mentioned -> Return prices for ALL companies
-  if (targetProduct && !singleCompany) {
-    const priceList = [];
-    companies.forEach(c => {
-      const p = targetProduct.prices?.[c];
-      if (p !== null && p !== undefined && p !== '' && p !== 0) {
-        priceList.push(`• ${c}: ${p} ريال`);
-      } else {
-        priceList.push(`• ${c}: (غير محدد)`);
-      }
+  // Query: Only Product -> Return all companies prices
+  if (matchedProduct && !matchedCompany) {
+    const list = companies.map(c => {
+      const p = matchedProduct.prices?.[c];
+      return p ? `• ${c}: ${p} ريال` : `• ${c}: (غير محدد)`;
     });
-
     return {
-      replyText: `أسعار ${targetProduct.name} لجميع الشركات:\n${priceList.join('\n')}`,
+      replyText: `أسعار ${matchedProduct.name} لجميع الشركات:\n${list.join('\n')}`,
       action: null
     };
   }
 
-  // Case D: ONLY Company is mentioned -> Return all priced products for this company
-  if (singleCompany && !targetProduct) {
-    const companyProducts = [];
-    products.forEach(p => {
-      const pr = p.prices?.[singleCompany];
-      if (pr !== null && pr !== undefined && pr !== '' && pr !== 0) {
-        companyProducts.push(`• ${p.name}: ${pr} ريال`);
-      }
-    });
+  // Query: Only Company -> Return all products for that company
+  if (matchedCompany && !matchedProduct) {
+    const list = products
+      .filter(p => p.prices?.[matchedCompany])
+      .map(p => `• ${p.name}: ${p.prices[matchedCompany]} ريال`);
 
-    if (companyProducts.length === 0) {
+    if (list.length === 0) {
       return {
-        replyText: `لم يتم تسجيل أي أسعار معتمدة بعد لشركة "${singleCompany}".`,
+        replyText: `لا توجد أسعار مسجلة لشركة "${matchedCompany}" حتى الآن.`,
         action: null
       };
     }
-
     return {
-      replyText: `قائمة المنتجات المسجلة لـ "${singleCompany}":\n${companyProducts.slice(0, 8).join('\n')}${companyProducts.length > 8 ? `\n(و ${companyProducts.length - 8} منتجات أخرى)` : ''}`,
+      replyText: `منتجات وأسعار "${matchedCompany}":\n${list.slice(0, 10).join('\n')}`,
       action: null
     };
   }
 
+  // Default Guidance
   return {
-    replyText: "تفضل بسؤالك: يمكنك طلب سعر منتج معين، أو اسم منتج لترى أسعاره لكل الشركات، أو اسم شركة لترى جميع منتجاتها.",
+    replyText: "تفضل بسؤالك: يمكنك طلب سعر مقاس معين (مثل: برجستون 225/70/17)، أو اطلب إضافة منتج مع الشركة والسعر وسأطلب منك الرمز 1234 لتأكيده فوراً.",
     action: null
   };
 }
@@ -222,17 +192,11 @@ function processSmartQuery(message, context, pinProvided) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { message, context, pinProvided, apiKey: clientApiKey } = body;
-
-    const apiKey = (clientApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
-
-    // If quota exceeded or direct smart logic, process through our advanced rule engine
+    const { message, context, pinProvided } = body;
     return NextResponse.json(processSmartQuery(message, context, pinProvided));
-
   } catch (error) {
-    console.error("AI route general error:", error);
     return NextResponse.json({
-      replyText: `خطأ في المعالجة: ${error.message}`,
+      replyText: `حدث خطأ: ${error.message}`,
       error: error.message
     }, { status: 500 });
   }

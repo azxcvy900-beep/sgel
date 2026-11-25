@@ -65,7 +65,10 @@ export default function VoiceAssistantModal({
   // Human-like Natural Voice Synthesis
   const speakNatural = async (text) => {
     try {
-      // 1. Try Google Neural Audio endpoint
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+      }
+
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,38 +77,40 @@ export default function VoiceAssistantModal({
 
       if (res.ok) {
         const data = await res.json();
-        if (data.audioBase64) {
-          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+        if (data.audioUrl) {
+          const audio = new Audio(data.audioUrl);
           audioPlayerRef.current = audio;
           setIsSpeaking(true);
           audio.onended = () => setIsSpeaking(false);
-          audio.onerror = () => setIsSpeaking(false);
+          audio.onerror = () => {
+            setIsSpeaking(false);
+            fallbackBrowserVoice(text);
+          };
           await audio.play();
           return;
         }
       }
     } catch (e) {
-      console.warn("Neural TTS fallback to browser natural voice:", e);
+      console.warn("TTS error, falling back:", e);
     }
 
-    // 2. High Quality Browser Synthesis Fallback (Filter for Natural / Premium Voices)
+    fallbackBrowserVoice(text);
+  };
+
+  const fallbackBrowserVoice = (text) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text.replace(/[\*\#\•]/g, ''));
       utterance.lang = 'ar-SA';
-      utterance.rate = 0.98;
-      utterance.pitch = 1.0;
+      utterance.rate = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      // Look for natural human sounding Arabic voices (Google, Maged, Tariq, Naayf)
       const naturalVoice = voices.find(v =>
-        (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('EG')) &&
-        (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online') || v.name.includes('Maged'))
+        v.lang.startsWith('ar') &&
+        (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online'))
       ) || voices.find(v => v.lang.startsWith('ar'));
 
-      if (naturalVoice) {
-        utterance.voice = naturalVoice;
-      }
+      if (naturalVoice) utterance.voice = naturalVoice;
 
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);

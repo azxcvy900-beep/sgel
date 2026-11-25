@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Generates high quality natural human-like Arabic speech using Google Cloud TTS
+// Generates high quality natural human-like speech via responsive TTS services
 export async function POST(request) {
   try {
     const { text } = await request.json();
@@ -9,52 +9,22 @@ export async function POST(request) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    const apiKey = (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
-
-    // Clean text from bullets and markdown symbols for natural speech flow
+    // Clean text from bullets and markdown for clear natural voice
     const cleanText = text
       .replace(/[\*\#\•\-\_]/g, ' ')
       .replace(/⚠️/g, 'تنبيه: ')
       .replace(/🔒/g, '')
       .replace(/\n+/g, '. ')
+      .replace(/\s+/g, ' ')
       .trim();
 
-    if (apiKey) {
-      // Use Google Cloud Text-to-Speech API with Neural2/Wavenet Arabic natural voices
-      const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
-      const ttsRes = await fetch(ttsUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: { text: cleanText },
-          voice: {
-            languageCode: 'ar-XA',
-            name: 'ar-XA-Wavenet-B', // Premium natural male Arabic voice
-            ssmlGender: 'MALE'
-          },
-          audioConfig: {
-            audioEncoding: 'MP3',
-            speakingRate: 1.05,
-            pitch: 0.0
-          }
-        })
-      });
+    // Use direct natural TTS audio stream
+    const encoded = encodeURIComponent(cleanText);
+    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=ar&client=tw-ob`;
 
-      if (ttsRes.ok) {
-        const data = await ttsRes.json();
-        if (data.audioContent) {
-          return NextResponse.json({
-            audioBase64: data.audioContent,
-            isNeural: true
-          });
-        }
-      }
-    }
-
-    // Fallback: return clean text for enhanced browser voice selection
     return NextResponse.json({
-      cleanText,
-      isNeural: false
+      audioUrl,
+      cleanText
     });
 
   } catch (err) {
