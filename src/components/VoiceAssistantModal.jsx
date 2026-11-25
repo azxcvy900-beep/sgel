@@ -69,6 +69,8 @@ export default function VoiceAssistantModal({
         audioPlayerRef.current.pause();
       }
 
+      setIsSpeaking(true);
+
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,47 +79,20 @@ export default function VoiceAssistantModal({
 
       if (res.ok) {
         const data = await res.json();
-        if (data.audioUrl) {
-          const audio = new Audio(data.audioUrl);
+        if (data.audioBase64) {
+          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
           audioPlayerRef.current = audio;
-          setIsSpeaking(true);
           audio.onended = () => setIsSpeaking(false);
-          audio.onerror = () => {
-            setIsSpeaking(false);
-            fallbackBrowserVoice(text);
-          };
+          audio.onerror = () => setIsSpeaking(false);
           await audio.play();
           return;
         }
       }
     } catch (e) {
-      console.warn("TTS error, falling back:", e);
+      console.warn("TTS error:", e);
     }
 
-    fallbackBrowserVoice(text);
-  };
-
-  const fallbackBrowserVoice = (text) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text.replace(/[\*\#\•]/g, ''));
-      utterance.lang = 'ar-SA';
-      utterance.rate = 1.0;
-
-      const voices = window.speechSynthesis.getVoices();
-      const naturalVoice = voices.find(v =>
-        v.lang.startsWith('ar') &&
-        (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online'))
-      ) || voices.find(v => v.lang.startsWith('ar'));
-
-      if (naturalVoice) utterance.voice = naturalVoice;
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-
-      window.speechSynthesis.speak(utterance);
-    }
+    setIsSpeaking(false);
   };
 
   const toggleListening = () => {
