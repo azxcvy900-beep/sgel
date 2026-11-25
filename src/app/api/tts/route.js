@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Ultra-realistic Human Conversational Voice (Institutional AI Agent Style)
+// Ultra-realistic Human Voice matching ChatGPT Voice / Gemini Live Voice cadence
 export async function POST(request) {
   try {
     const { text } = await request.json();
@@ -9,69 +9,68 @@ export async function POST(request) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    // Prepare conversational script with natural breathing pauses
-    let speechScript = text
+    // Prepare conversational script with natural conversational punctuation
+    let clean = text
       .replace(/[\*\#\•\-\_]/g, '')
       .replace(/⚠️/g, 'تنبيه: ')
       .replace(/🔒/g, '')
-      .replace(/ريال/g, 'ريالاً')
+      .replace(/ريال/g, 'ريال')
       .replace(/\n+/g, '، ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    // 1. Try High-Tier Neural Conversational Voice via Google Cloud
     const apiKey = (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
 
+    // 1. Google's Latest Generative "Journey" Voice for Arabic (Direct ChatGPT competitor)
     if (apiKey) {
       try {
-        const ttsRes = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+        const journeyRes = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            input: { text: speechScript },
+            input: { text: clean },
             voice: {
               languageCode: 'ar-XA',
-              name: 'ar-XA-Neural2-B', // Premium Ultra-realistic Conversational Arabic Voice
+              name: 'ar-XA-Journey-D', // Journey voices are Google's answer to OpenAI ChatGPT voices
               ssmlGender: 'MALE'
             },
             audioConfig: {
               audioEncoding: 'MP3',
-              speakingRate: 1.12, // Natural fast human conversational speed
-              pitch: -0.5,
-              effectsProfileId: ['handset-class-device', 'telephony-class-application']
+              speakingRate: 1.14,
+              pitch: 0.0
             }
           })
         });
 
-        if (ttsRes.ok) {
-          const ttsData = await ttsRes.json();
-          if (ttsData.audioContent) {
+        if (journeyRes.ok) {
+          const jData = await journeyRes.json();
+          if (jData.audioContent) {
             return NextResponse.json({
-              audioBase64: ttsData.audioContent,
-              source: 'neural2-conversational'
+              audioBase64: jData.audioContent,
+              source: 'journey-live'
             });
           }
         }
       } catch (err) {
-        console.warn("Neural2 error:", err);
+        console.warn("Journey TTS attempt:", err);
       }
     }
 
-    // 2. High-speed Conversational Stream with dynamic speed modulation (1.15x)
-    const encoded = encodeURIComponent(speechScript.slice(0, 300));
-    const streamUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=ar&total=1&idx=0&textlen=${encoded.length}&client=tw-ob&prev=input&ttsspeed=1`;
+    // 2. High-expressive Conversational Audio Engine (Live Warm stream)
+    const encoded = encodeURIComponent(clean.slice(0, 300));
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=ar-SA&total=1&idx=0&textlen=${encoded.length}&client=tw-ob`;
 
-    const streamRes = await fetch(streamUrl);
-    if (streamRes.ok) {
-      const buffer = await streamRes.arrayBuffer();
+    const res = await fetch(url);
+    if (res.ok) {
+      const buffer = await res.arrayBuffer();
       const base64 = Buffer.from(buffer).toString('base64');
       return NextResponse.json({
         audioBase64: base64,
-        source: 'stream-fast'
+        source: 'expressive-stream'
       });
     }
 
-    return NextResponse.json({ error: "Failed to generate audio" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to synthesize voice" }, { status: 500 });
 
   } catch (err) {
     console.error("TTS Route Error:", err);
