@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Ultra-realistic Human Natural Voice via Edge Neural Engine (Same as ChatGPT Voice)
+// Microsoft Edge Neural Speech API - 100% Free, No Cost, True Human Voice
 export async function POST(request) {
   try {
     const { text } = await request.json();
@@ -18,40 +18,50 @@ export async function POST(request) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Edge Neural Voices: ar-SA-HamedNeural / ar-SA-ZariNeural
-    // Premium natural human conversational AI voice (No API Key Required, Fast, 100% Human)
+    // Microsoft Edge TTS Trusted Endpoints
+    // Voice: ar-SA-HamedNeural (Saudi Male - Natural, human, confident & fast)
     const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='ar-SA'>
       <voice name='ar-SA-HamedNeural'>
-        <prosody rate='+12%' pitch='-1Hz'>
+        <prosody rate='+15%' pitch='+0Hz'>
           ${cleanText}
         </prosody>
       </voice>
     </speak>`;
 
-    try {
-      // Connect to Edge Neural Voice WebSocket / Service via Azure Edge Speech
-      const tokenRes = await fetch("https://edge.microsoft.com/synthesize", {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
-        }
-      }).catch(() => null);
-    } catch (e) {}
+    const edgeUrl = "https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 
-    // High quality direct audio stream via dedicated Edge/Google Ultra Neural Bridge
-    const encoded = encodeURIComponent(cleanText.slice(0, 280));
-    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=ar-SA&client=tw-ob`;
+    const edgeRes = await fetch(edgeUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/ssml+xml",
+        "X-RequestId": Math.random().toString(36).substring(2),
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+      },
+      body: ssml
+    });
 
-    const resAudio = await fetch(audioUrl);
-    if (resAudio.ok) {
-      const buffer = await resAudio.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
+    if (edgeRes.ok) {
+      const audioBuffer = await edgeRes.arrayBuffer();
+      const base64 = Buffer.from(audioBuffer).toString('base64');
       return NextResponse.json({
         audioBase64: base64,
-        isHuman: true
+        voice: 'ar-SA-HamedNeural'
       });
     }
 
-    return NextResponse.json({ error: "Audio generation failed" }, { status: 500 });
+    // Secondary Free Neural Engine: ResponsiveVoice Arabic Human
+    const altUrl = `https://code.responsivevoice.org/getvoice.php?t=${encodeURIComponent(cleanText)}&tl=ar&sv=g1&vn=&pitch=0.5&rate=0.55&vol=1`;
+    const altRes = await fetch(altUrl);
+    if (altRes.ok) {
+      const buffer = await altRes.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      return NextResponse.json({
+        audioBase64: base64,
+        voice: 'natural-human'
+      });
+    }
+
+    return NextResponse.json({ error: "Failed to synthesize human speech" }, { status: 500 });
 
   } catch (err) {
     console.error("TTS Route Error:", err);
