@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Ultra-realistic Human Arabic Voice powered by Munsit API & ElevenLabs
+// Ultra-realistic Human Arabic Voice powered by Munsit API
 export async function POST(request) {
   try {
     const { text } = await request.json();
@@ -18,69 +18,65 @@ export async function POST(request) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    // 1. MUNSIT API (منصة مُنصت لأرقى الأصوات العربية البشرية)
     const munsitKey = (process.env.MUNSIT_API_KEY || '').trim();
-    if (munsitKey) {
+
+    if (!munsitKey) {
+      return NextResponse.json({
+        error: "لم يتم العثور على MUNSIT_API_KEY في Vercel. يرجى التأكد من حفظه وعمل Redeploy."
+      }, { status: 400 });
+    }
+
+    // Munsit endpoints to try:
+    const endpoints = [
+      'https://api.munsit.com/v1/text-to-speech',
+      'https://api.munsit.com/api/v1/tts',
+      'https://api.munsit.com/v1/tts'
+    ];
+
+    let lastError = null;
+
+    for (const ep of endpoints) {
       try {
-        const munsitRes = await fetch('https://api.munsit.com/v1/tts', {
+        const res = await fetch(ep, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${munsitKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'audio/mpeg'
+            'x-api-key': munsitKey,
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             text: cleanText,
-            voice_id: 'sa_male_1', // الصوت السعودي الطبيعي
-            speed: 1.15
+            speed: 1.1
           })
         });
 
-        if (munsitRes.ok) {
-          const buffer = await munsitRes.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          return NextResponse.json({
-            audioBase64: base64,
-            engine: 'munsit'
-          });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('audio') || contentType.includes('mpeg')) {
+            const buffer = await res.arrayBuffer();
+            const base64 = Buffer.from(buffer).toString('base64');
+            return NextResponse.json({ audioBase64: base64 });
+          } else {
+            const data = await res.json();
+            if (data.audio || data.audio_base64 || data.audioBase64) {
+              return NextResponse.json({ audioBase64: data.audio || data.audio_base64 || data.audioBase64 });
+            } else if (data.url || data.audio_url) {
+              const audioFetch = await fetch(data.url || data.audio_url);
+              const buffer = await audioFetch.arrayBuffer();
+              return NextResponse.json({ audioBase64: Buffer.from(buffer).toString('base64') });
+            }
+          }
+        } else {
+          lastError = `[${res.status}]: ${await res.text()}`;
         }
       } catch (err) {
-        console.warn("Munsit error, trying direct fallback:", err);
+        lastError = err.message;
       }
     }
 
-    // 2. ElevenLabs fallback if configured
-    const elevenLabsKey = (process.env.ELEVENLABS_API_KEY || '').trim();
-    if (elevenLabsKey) {
-      try {
-        const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': elevenLabsKey
-          },
-          body: JSON.stringify({
-            text: cleanText,
-            model_id: "eleven_multilingual_v2"
-          })
-        });
-
-        if (elRes.ok) {
-          const buffer = await elRes.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          return NextResponse.json({
-            audioBase64: base64,
-            engine: 'elevenlabs'
-          });
-        }
-      } catch (e) {}
-    }
-
-    // Secondary fallback
     return NextResponse.json({
-      error: "يرجى التأكد من إضافة مفتاح MUNSIT_API_KEY في Vercel"
-    }, { status: 400 });
+      error: `تنبيه من سيرفر منصت: ${lastError}`
+    }, { status: 500 });
 
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
