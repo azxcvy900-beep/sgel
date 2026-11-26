@@ -11,7 +11,6 @@ function normalize(str) {
     .trim();
 }
 
-// Extract tire sizes like 225/70/17 or 225 70 17 or 2257017
 function extractTirePattern(str) {
   if (!str) return null;
   const match = str.match(/(\b\d{3})[\s\.\-\/]?(\d{2})[\s\.\-\/]?(\d{2}\b)/);
@@ -28,24 +27,50 @@ function processSmartQuery(message, context, pinProvided) {
   const rawMsg = (message || '').trim();
   const normMsg = normalize(rawMsg);
 
-  // 1. Filter Chit-chat (Business focused)
-  const nonBusiness = ['نكتة', 'قصة', 'طبخ', 'سياسة', 'دين', 'اخبار', 'شخبارك', 'كيفك'];
-  if (nonBusiness.some(w => normMsg.includes(w))) {
+  // 1. INQUIRY: List all companies (e.g. "ما الشركات المسجلة لدي؟" / "اعطني قائمة الشركات")
+  if (
+    (normMsg.includes('شرك') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('اعطني') || normMsg.includes('كل') || normMsg.includes('جميع')))
+  ) {
+    if (companies.length === 0) {
+      return { replyText: "لا توجد أي شركات مسجلة في النظام حالياً.", action: null };
+    }
+    const cList = companies.map((c, i) => `${i + 1}. ${c}`).join('\n');
+    return {
+      replyText: `الشركات المسجلة لديك (${companies.length} شركات):\n${cList}`,
+      action: null
+    };
+  }
+
+  // 2. INQUIRY: List all products / Inventory overview (e.g. "ما هي المنتجات المسجلة؟")
+  if (
+    (normMsg.includes('منتج') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('كم') || normMsg.includes('كل')))
+  ) {
+    if (products.length === 0) {
+      return { replyText: "لا توجد أي منتجات مسجلة في النظام حالياً.", action: null };
+    }
+    const pSample = products.slice(0, 8).map(p => `• ${p.name} (${p.code || ''})`).join('\n');
+    return {
+      replyText: `لديك ${products.length} منتج مسجل في النظام. عينة منها:\n${pSample}${products.length > 8 ? `\n...و ${products.length - 8} منتجات أخرى.` : ''}`,
+      action: null
+    };
+  }
+
+  // 3. Filter strictly out-of-scope chit chat (Cooking, politics, jokes)
+  const strictlyNonBusiness = ['نكتة', 'نكت', 'قصة', 'طبخ', 'اكل', 'سياسة', 'دين', 'كورة', 'شخبارك'];
+  if (strictlyNonBusiness.some(w => normMsg.includes(w))) {
     return {
       replyText: "عذراً، أنا مخصص فقط لإدارة وتسعير منتجات وشركات المركز.",
       action: null
     };
   }
 
-  // 2. Intelligent Compound Action: ADD / UPDATE PRODUCT & PRICE
+  // 4. Intelligent Compound Action: ADD / UPDATE PRODUCT & PRICE
   const isAddOrUpdate = normMsg.includes('اضف') || normMsg.includes('سجل') || normMsg.includes('عدل') || normMsg.includes('غير') || normMsg.includes('حط');
 
   if (isAddOrUpdate) {
-    // Extract Price Number
     const priceMatch = rawMsg.match(/\b\d+(\.\d+)?\b/);
     const price = priceMatch ? Number(priceMatch[0]) : null;
 
-    // Detect Company
     let companyName = null;
     const compRegex = /(?:شركة|شركه)\s+([\u0621-\u064A\w\s]+?)(?=\s+\d|\s+سعر|\s+بـ|\s+بسعر|\s+قبل|$)/i;
     const compMatch = rawMsg.match(compRegex);
@@ -57,7 +82,6 @@ function processSmartQuery(message, context, pinProvided) {
       if (foundComp) companyName = foundComp;
     }
 
-    // Detect or Extract Product Name
     const tirePattern = extractTirePattern(rawMsg);
     let prodName = rawMsg
       .replace(/اضف|أضف|سجل|عدل|غير|حط|المنتج|منتج|و\s*الشركة|و\s*الشركه/gi, '')
@@ -119,7 +143,7 @@ function processSmartQuery(message, context, pinProvided) {
     }
   }
 
-  // 3. SMART QUERY LOGIC
+  // 5. SMART QUERY LOGIC FOR PRODUCTS & COMPANIES
   const tirePattern = extractTirePattern(rawMsg);
   const matchedCompany = companies.find(c => normMsg.includes(normalize(c)));
 
@@ -180,7 +204,7 @@ function processSmartQuery(message, context, pinProvided) {
 
   // Default intelligent assistant response
   return {
-    replyText: "تفضل، أنا أستمع إليك. يمكنك طلب سعر أي منتج أو مقاس، أو أمر إضافة منتج مع سعره وشركته.",
+    replyText: "تفضل بسؤالك: يمكنك الاستفسار عن الشركات المسجلة، أو أسعار أي مقاس أو منتج، أو طلب إضافة وتعديل برمز الإدارة.",
     action: null
   };
 }
