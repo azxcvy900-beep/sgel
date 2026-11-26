@@ -1,20 +1,5 @@
 import { NextResponse } from 'next/server';
 
-const SYSTEM_INSTRUCTIONS = `
-أنت المساعد الصوتي والذكي الحصري لنظام "مركز إدارة وتسعير المنتجات".
-مهمتك:
-1. الاستعلام الذكي عن أسعار المنتجات والشركات.
-2. إضافة أو تعديل المنتجات، الأسعار، أو الشركات فقط عند توفر رمز التأكيد الإداري (1234).
-
-قواعد استخراج الأوامر بذكاء تام:
-- إذا قال المستخدم: "اضف منتج [اسم المنتج] شركة [اسم الشركة] سعر [السعر]":
-  قم باستخراج اسم المنتج، واسم الشركة، والسعر فوراً.
-  واطلب منه رمز التأكيد 1234 لتنفيذ العملية.
-
-- إذا ذكر المستخدم منتجاً فقط: اعرض أسعاره لجميع الشركات.
-- إذا ذكر شركة فقط: اعرض أسعار منتجاتها.
-`;
-
 function normalize(str) {
   if (!str) return '';
   return str
@@ -26,6 +11,16 @@ function normalize(str) {
     .trim();
 }
 
+// Extract tire sizes like 225/70/17 or 225 70 17 or 2257017
+function extractTirePattern(str) {
+  if (!str) return null;
+  const match = str.match(/(\b\d{3})[\s\.\-\/]?(\d{2})[\s\.\-\/]?(\d{2}\b)/);
+  if (match) {
+    return `${match[1]}/${match[2]}/${match[3]}`;
+  }
+  return null;
+}
+
 function processSmartQuery(message, context, pinProvided) {
   const products = context?.products || [];
   const companies = context?.companies || [];
@@ -33,7 +28,7 @@ function processSmartQuery(message, context, pinProvided) {
   const rawMsg = (message || '').trim();
   const normMsg = normalize(rawMsg);
 
-  // 1. FILTER GENERAL CHAT
+  // 1. Filter Chit-chat (Business focused)
   const nonBusiness = ['نكتة', 'قصة', 'طبخ', 'سياسة', 'دين', 'اخبار', 'شخبارك', 'كيفك'];
   if (nonBusiness.some(w => normMsg.includes(w))) {
     return {
@@ -42,8 +37,7 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // 2. DETECT COMPOUND "ADD / UPDATE PRODUCT + COMPANY + PRICE"
-  // Example: "اضف المنتج و الشركة برجستون 225/70/17 شركة صباح ستور 990 قبل الضريبة"
+  // 2. Intelligent Compound Action: ADD / UPDATE PRODUCT & PRICE
   const isAddOrUpdate = normMsg.includes('اضف') || normMsg.includes('سجل') || normMsg.includes('عدل') || normMsg.includes('غير') || normMsg.includes('حط');
 
   if (isAddOrUpdate) {
@@ -51,7 +45,7 @@ function processSmartQuery(message, context, pinProvided) {
     const priceMatch = rawMsg.match(/\b\d+(\.\d+)?\b/);
     const price = priceMatch ? Number(priceMatch[0]) : null;
 
-    // Extract Company (Check if message contains "شركة ..." or an existing company)
+    // Detect Company
     let companyName = null;
     const compRegex = /(?:شركة|شركه)\s+([\u0621-\u064A\w\s]+?)(?=\s+\d|\s+سعر|\s+بـ|\s+بسعر|\s+قبل|$)/i;
     const compMatch = rawMsg.match(compRegex);
@@ -59,12 +53,12 @@ function processSmartQuery(message, context, pinProvided) {
     if (compMatch && compMatch[1]) {
       companyName = compMatch[1].trim();
     } else {
-      // Check existing companies
       const foundComp = companies.find(c => normMsg.includes(normalize(c)));
       if (foundComp) companyName = foundComp;
     }
 
-    // Extract Product Name
+    // Detect or Extract Product Name
+    const tirePattern = extractTirePattern(rawMsg);
     let prodName = rawMsg
       .replace(/اضف|أضف|سجل|عدل|غير|حط|المنتج|منتج|و\s*الشركة|و\s*الشركه/gi, '')
       .replace(new RegExp(`(?:شركة|شركه)\\s+${companyName || ''}`, 'gi'), '')
@@ -73,17 +67,18 @@ function processSmartQuery(message, context, pinProvided) {
       .replace(/قبل الضريبة|شامل الضريبة|ريال|بسعر|بـ|سعر/gi, '')
       .trim();
 
-    // Clean extra punctuation
     prodName = prodName.replace(/^[\s,،\-]+|[\s,،\-]+$/g, '');
+    if (tirePattern && !prodName.includes(tirePattern)) {
+      prodName = `${prodName} ${tirePattern}`.trim();
+    }
 
-    // Case A: Full Add / Update request
-    if (prodName && (companyName || price)) {
+    if (prodName && (companyName || price !== null)) {
       const finalComp = companyName || companies[0] || 'الشركة العامة';
       const finalPrice = price || 0;
 
       if (pinProvided !== adminPin) {
         return {
-          replyText: `لتأكيد إضافة منتج "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال، يرجى إدخال رمز الإدارة 1234.`,
+          replyText: `لتأكيد إضافة "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال، يرجى إدخال رمز الإدارة 1234.`,
           action: {
             type: 'ADD_PRODUCT',
             productName: prodName,
@@ -94,7 +89,7 @@ function processSmartQuery(message, context, pinProvided) {
         };
       } else {
         return {
-          replyText: `تم بنجاح تسجيل "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال وتحديث النظام.`,
+          replyText: `تم بنجاح تسجيل "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال وتحديث النظام سحابياً.`,
           action: {
             type: 'ADD_PRODUCT',
             productName: prodName,
@@ -106,7 +101,7 @@ function processSmartQuery(message, context, pinProvided) {
       }
     }
 
-    // Case B: Only Add Company request (e.g. "أضف شركة صباح ستور")
+    // Company only addition
     if (normMsg.includes('شرك') && !prodName) {
       const cMatch = rawMsg.replace(/اضف|أضف|سجل|شركه|شركة|جديده|جديدة/gi, '').trim();
       if (cMatch) {
@@ -124,19 +119,20 @@ function processSmartQuery(message, context, pinProvided) {
     }
   }
 
-  // 3. SEARCH / QUERY LOGIC
-  // A. Check if query matches a known company
+  // 3. SMART QUERY LOGIC
+  const tirePattern = extractTirePattern(rawMsg);
   const matchedCompany = companies.find(c => normMsg.includes(normalize(c)));
 
-  // B. Check if query matches a product (Direct or tire size e.g. 225/70/17)
   const matchedProduct = products.find(p => {
     const pNorm = normalize(p.name);
     const pCode = (p.code || '').toLowerCase();
     const cleanTokens = normMsg.split(/[\s,،]+/);
-    return normMsg.includes(pNorm) || (pCode && normMsg.includes(pCode)) || cleanTokens.some(t => t.length > 3 && pNorm.includes(t));
+    const hasTire = tirePattern && (p.name.includes(tirePattern) || (p.code && p.code.includes(tirePattern)));
+
+    return hasTire || normMsg.includes(pNorm) || (pCode && normMsg.includes(pCode)) || cleanTokens.some(t => t.length > 3 && pNorm.includes(t));
   });
 
-  // Query: Both Product and Company
+  // Query: Product AND Company
   if (matchedProduct && matchedCompany) {
     const price = matchedProduct.prices?.[matchedCompany];
     if (price !== null && price !== undefined && price !== '' && price !== 0) {
@@ -152,7 +148,7 @@ function processSmartQuery(message, context, pinProvided) {
     }
   }
 
-  // Query: Only Product -> Return all companies prices
+  // Query: Product Only -> Show all companies
   if (matchedProduct && !matchedCompany) {
     const list = companies.map(c => {
       const p = matchedProduct.prices?.[c];
@@ -164,7 +160,7 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // Query: Only Company -> Return all products for that company
+  // Query: Company Only -> Show company's products
   if (matchedCompany && !matchedProduct) {
     const list = products
       .filter(p => p.prices?.[matchedCompany])
@@ -182,9 +178,9 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // Default Guidance
+  // Default intelligent assistant response
   return {
-    replyText: "تفضل بسؤالك: يمكنك طلب سعر مقاس معين (مثل: برجستون 225/70/17)، أو اطلب إضافة منتج مع الشركة والسعر وسأطلب منك الرمز 1234 لتأكيده فوراً.",
+    replyText: "تفضل، أنا أستمع إليك. يمكنك طلب سعر أي منتج أو مقاس، أو أمر إضافة منتج مع سعره وشركته.",
     action: null
   };
 }
@@ -196,7 +192,7 @@ export async function POST(request) {
     return NextResponse.json(processSmartQuery(message, context, pinProvided));
   } catch (error) {
     return NextResponse.json({
-      replyText: `حدث خطأ: ${error.message}`,
+      replyText: `حدث خطأ في النظام: ${error.message}`,
       error: error.message
     }, { status: 500 });
   }
