@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ref, onValue, set, off } from 'firebase/database';
 import { rtdb } from '../firebase/config';
 import VoiceAssistantModal from './VoiceAssistantModal';
+import { parseExcelFile, exportToExcel, generateExcelTemplate } from '../utils/excelHandler';
 
 // ============================================================
 // PWA INSTALL PROMPT
@@ -127,18 +128,38 @@ export default function PriceLookup() {
   const [quickPin, setQuickPin] = useState('');
   const [quickPinErr, setQuickPinErr] = useState(false);
 
-  // Load from Firebase
+  // Load from LocalStorage (Offline-First) & Sync with Firebase
   useEffect(() => {
+    // 1. Immediate offline recovery from cache
+    try {
+      const cachedCompanies = localStorage.getItem('ph_companies');
+      const cachedProducts = localStorage.getItem('ph_products');
+      const cachedPin = localStorage.getItem('ph_admin_pin');
+      if (cachedCompanies) setCompanies(JSON.parse(cachedCompanies));
+      if (cachedProducts) setProducts(JSON.parse(cachedProducts));
+      if (cachedPin) setAdminPin(cachedPin);
+    } catch (e) {
+      console.warn("Storage read error:", e);
+    }
+
+    // 2. Real-time Firebase Sync
     const dbRef = ref(rtdb, 'pricing_hub');
     const unsub = onValue(dbRef, (snap) => {
       if (snap.exists()) {
         const data = snap.val();
-        if (data.companies) setCompanies(data.companies);
+        if (data.companies) {
+          setCompanies(data.companies);
+          localStorage.setItem('ph_companies', JSON.stringify(data.companies));
+        }
         if (data.products) {
           const arr = Object.entries(data.products).map(([id, p]) => ({ id, ...p }));
           setProducts(arr);
+          localStorage.setItem('ph_products', JSON.stringify(arr));
         }
-        if (data.adminPin) setAdminPin(data.adminPin);
+        if (data.adminPin) {
+          setAdminPin(data.adminPin);
+          localStorage.setItem('ph_admin_pin', data.adminPin);
+        }
         setFirebaseConnected(true);
       }
     }, () => setFirebaseConnected(false));
@@ -613,9 +634,12 @@ function AssistantView({ companies, products, onOpenVoice }) {
           {!selectedCompany ? (
             <p className="clean-select-hint">👈 الرجاء اختيار الشركة بالأعلى لعرض السعر</p>
           ) : priceUndefined ? (
-            <div className="clean-price-alert">
-              <span className="alert-badge">⚠️ السعر غير محدد</span>
-              <p>راجع الإدارة لتحديث التسعيرة لهذه الشركة</p>
+            <div className="clean-price-alert high-contrast-alert">
+              <div className="alert-red-flag">
+                <span className="alert-badge">🚩 السعر غير محدد نهائياً</span>
+                <span className="alert-sub-warn">راجع الإدارة لتسعير هذا المنتج لـ "{selectedCompany}"</span>
+              </div>
+              <p className="safety-zero-rule">قاعدة أمان: لن يظهر صفر أو رقم افتراضي منعاً للخطأ في الفاتورة.</p>
             </div>
           ) : (
             <div className="clean-price-tag">
@@ -770,6 +794,7 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
       <div className="admin-header">
         <div className="admin-tabs">
           <button className={`tab-btn ${tab === 'products' ? 'active' : ''}`} onClick={() => setTab('products')}>📦 المنتجات</button>
+          <button className={`tab-btn ${tab === 'excel' ? 'active' : ''}`} onClick={() => setTab('excel')}>📊 استيراد/تصدير Excel</button>
           <button className={`tab-btn ${tab === 'companies' ? 'active' : ''}`} onClick={() => setTab('companies')}>🏢 الشركات</button>
           <button className={`tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>⚙️ الإعدادات</button>
         </div>
@@ -850,6 +875,83 @@ function AdminView({ companies, products, setCompanies, setProducts, adminPin, s
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'excel' && (
+        <div className="tab-content excel-content">
+          <div className="excel-panel-header">
+            <h3>📊 إدارة الأسعار الشاملة عبر Excel</h3>
+            <p>يمكنك تحميل قالب إكسل، أو استيراد ملف يحتوي على 150 منتجاً مع أسعار الـ 10 شركات بضغطة زر واحدة.</p>
+          </div>
+
+          <div className="excel-actions-grid">
+            <div className="excel-action-card">
+              <h4>📥 1. تحميل قالب إكسل فارغ</h4>
+              <p>يحتوي القالب على أعمدة جاهزة بأسماء الشركات الحالية في المركز لتعبئتها.</p>
+              <button
+                className="btn-excel-action"
+                onClick={() => {
+                  generateExcelTemplate(localCompanies);
+                }}
+              >
+                📄 تنزيل القالب الجاهز (.xlsx)
+              </button>
+            </div>
+
+            <div className="excel-action-card">
+              <h4>📤 2. تصدير نسخة احتياطية كاملة</h4>
+              <p>قم بتنزيل شيت إكسل كامل بجميع المنتجات وأسعارها الحالية المحفوظة في المركز.</p>
+              <button
+                className="btn-excel-action export"
+                onClick={() => {
+                  exportToExcel(localProducts, localCompanies, `مركز_الأسعار_نسخة_${new Date().toISOString().slice(0, 10)}`);
+                }}
+              >
+                💾 تصدير قاعدة البيانات الحالية
+              </button>
+            </div>
+
+            <div className="excel-action-card highlight">
+              <h4>⚡ 3. رفع ملف إكسل وتحديث النظام فوراً</h4>
+              <p>اختر ملف إكسل معبأ بالمنتجات والأسعار لتحديث جميع الأجهزة وقاعدة البيانات السحابية.</p>
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                id="excel-file-input"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    setSaving(true);
+                    setSaveMsg('جارٍ قراءة ملف الإكسل...');
+                    const parsed = await parseExcelFile(file, localCompanies);
+                    if (parsed && parsed.products && parsed.products.length > 0) {
+                      setLocalProducts(parsed.products);
+                      setProducts(parsed.products);
+                      await onSaveToFirebase(localCompanies, parsed.products, adminPin);
+                      setSaveMsg(`✅ تم استيراد ${parsed.products.length} منتجاً وتحديث السحابة بنجاح!`);
+                    } else {
+                      setSaveMsg('❌ لم يتم العثور على بيانات منتجات صالحة في الملف.');
+                    }
+                  } catch (err) {
+                    setSaveMsg('❌ خطأ في قراءة الملف: ' + err.message);
+                  } finally {
+                    setSaving(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <button
+                className="btn-excel-action upload"
+                onClick={() => document.getElementById('excel-file-input')?.click()}
+                disabled={saving}
+              >
+                {saving ? '⏳ جارٍ الاستيراد...' : '🚀 اختيار ملف Excel ورفعه سحابياً'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1007,6 +1007,133 @@ html, body {
   cursor: pointer;
 }
 
+/* High Contrast Red Flag Alert when Price is Undefined */
+.clean-price-alert.high-contrast-alert {
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.alert-red-flag .alert-badge {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #b91c1c;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.alert-sub-warn {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #7f1d1d;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.safety-zero-rule {
+  font-size: 0.75rem;
+  color: #991b1b;
+  opacity: 0.85;
+}
+
+/* Excel Management Panel */
+.excel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.excel-panel-header h3 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.excel-panel-header p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.excel-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 600px) {
+  .excel-actions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .excel-action-card.highlight {
+    grid-column: span 2;
+  }
+}
+
+.excel-action-card {
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.excel-action-card.highlight {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.excel-action-card h4 {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.excel-action-card p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.btn-excel-action {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.btn-excel-action:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-excel-action.export {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-excel-action.upload {
+  background: #16a34a;
+  color: white;
+  border: none;
+  font-size: 0.95rem;
+  padding: 12px;
+}
+
+.btn-excel-action.upload:hover {
+  background: #15803d;
+}
+
 /* =========================================
    ADMIN STYLES
 ========================================= */
