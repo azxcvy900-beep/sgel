@@ -26,25 +26,12 @@ export default function VoiceAssistantModal({
 
   const recognitionRef = useRef(null);
   const chatBottomRef = useRef(null);
-  const availableVoicesRef = useRef([]);
+  const audioPlayerRef = useRef(null);
 
   // Auto scroll
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
-
-  // Load natural voices from browser
-  useEffect(() => {
-    const updateVoices = () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        availableVoicesRef.current = window.speechSynthesis.getVoices();
-      }
-    };
-    updateVoices();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = updateVoices;
-    }
-  }, []);
 
   // Speech Recognition Setup
   useEffect(() => {
@@ -75,46 +62,39 @@ export default function VoiceAssistantModal({
     }
   }, [companies, products, adminPin, pendingAction]);
 
-  // 100% Reliable Human Natural Speech
-  const speakNatural = (text) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  // REAL HUMAN AUDIO PLAYBACK (100% Studio MP3, Zero Browser Robot Synth)
+  const speakNatural = async (text) => {
+    try {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.currentTime = 0;
+      }
 
-    window.speechSynthesis.cancel();
+      setIsSpeaking(true);
 
-    const cleanText = text
-      .replace(/[\*\#\•\-\_]/g, ' ')
-      .replace(/⚠️/g, 'تنبيه: ')
-      .replace(/🔒/g, '')
-      .replace(/ريال/g, 'ريال')
-      .replace(/\n+/g, '، ')
-      .replace(/\s+/g, ' ')
-      .trim();
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'ar-SA';
-    utterance.rate = 1.15; // Natural human pace (fast & confident)
-    utterance.pitch = 1.0;
-
-    const voices = availableVoicesRef.current.length > 0 
-      ? availableVoicesRef.current 
-      : window.speechSynthesis.getVoices();
-
-    // Priority filter for modern natural human Arabic voices
-    const humanVoice = voices.find(v => 
-      v.lang.startsWith('ar') && 
-      (v.name.includes('Natural') || v.name.includes('Hamed') || v.name.includes('Google') || v.name.includes('Online') || v.name.includes('Maged'))
-    ) || voices.find(v => v.lang.startsWith('ar') && !v.name.includes('Desktop')) 
-      || voices.find(v => v.lang.startsWith('ar'));
-
-    if (humanVoice) {
-      utterance.voice = humanVoice;
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          audio.playbackRate = 1.15; // Natural human cadence
+          audioPlayerRef.current = audio;
+          audio.onended = () => setIsSpeaking(false);
+          audio.onerror = () => setIsSpeaking(false);
+          await audio.play();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Audio playback error:", e);
     }
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(false);
   };
 
   const toggleListening = () => {
@@ -125,8 +105,8 @@ export default function VoiceAssistantModal({
     if (isListening) {
       recognitionRef.current.stop();
     } else {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
         setIsSpeaking(false);
       }
       setTranscript('');
