@@ -26,12 +26,25 @@ export default function VoiceAssistantModal({
 
   const recognitionRef = useRef(null);
   const chatBottomRef = useRef(null);
-  const audioPlayerRef = useRef(null);
+  const availableVoicesRef = useRef([]);
 
   // Auto scroll
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  // Load natural voices from browser
+  useEffect(() => {
+    const updateVoices = () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        availableVoicesRef.current = window.speechSynthesis.getVoices();
+      }
+    };
+    updateVoices();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+  }, []);
 
   // Speech Recognition Setup
   useEffect(() => {
@@ -62,39 +75,46 @@ export default function VoiceAssistantModal({
     }
   }, [companies, products, adminPin, pendingAction]);
 
-  // Human-like Natural Voice Synthesis (Instant Studio Sound, No Browser Synth)
-  const speakNatural = async (text) => {
-    try {
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
-        audioPlayerRef.current.currentTime = 0;
-      }
+  // 100% Reliable Human Natural Speech
+  const speakNatural = (text) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
-      setIsSpeaking(true);
+    window.speechSynthesis.cancel();
 
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
+    const cleanText = text
+      .replace(/[\*\#\•\-\_]/g, ' ')
+      .replace(/⚠️/g, 'تنبيه: ')
+      .replace(/🔒/g, '')
+      .replace(/ريال/g, 'ريال')
+      .replace(/\n+/g, '، ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.audioBase64) {
-          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-          audio.playbackRate = 1.25; // Lively human conversational speed
-          audioPlayerRef.current = audio;
-          audio.onended = () => setIsSpeaking(false);
-          audio.onerror = () => setIsSpeaking(false);
-          await audio.play();
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn("Studio audio error:", e);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 1.15; // Natural human pace (fast & confident)
+    utterance.pitch = 1.0;
+
+    const voices = availableVoicesRef.current.length > 0 
+      ? availableVoicesRef.current 
+      : window.speechSynthesis.getVoices();
+
+    // Priority filter for modern natural human Arabic voices
+    const humanVoice = voices.find(v => 
+      v.lang.startsWith('ar') && 
+      (v.name.includes('Natural') || v.name.includes('Hamed') || v.name.includes('Google') || v.name.includes('Online') || v.name.includes('Maged'))
+    ) || voices.find(v => v.lang.startsWith('ar') && !v.name.includes('Desktop')) 
+      || voices.find(v => v.lang.startsWith('ar'));
+
+    if (humanVoice) {
+      utterance.voice = humanVoice;
     }
 
-    setIsSpeaking(false);
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
   };
 
   const toggleListening = () => {
@@ -105,12 +125,9 @@ export default function VoiceAssistantModal({
     if (isListening) {
       recognitionRef.current.stop();
     } else {
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
-        setIsSpeaking(false);
-      }
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
+        setIsSpeaking(false);
       }
       setTranscript('');
       try {
@@ -171,7 +188,7 @@ export default function VoiceAssistantModal({
     if (pinInput === adminPin) {
       if (pendingAction) {
         onApplyAction(pendingAction);
-        const successText = 'تم تأكيد الرمز وتنفيذ العملية بنجاح وتحديث الأسعار!';
+        const successText = 'تم تأكيد الرمز 1234 وتنفيذ العملية بنجاح وتحديث الأسعار!';
         setMessages((prev) => [...prev, { sender: 'ai', text: successText }]);
         speakNatural(successText);
         setPendingAction(null);
@@ -194,7 +211,7 @@ export default function VoiceAssistantModal({
         <div className="voice-modal-header">
           <div className="voice-header-title">
             <span className={`voice-pulse-indicator ${isSpeaking ? 'speaking' : ''}`}></span>
-            <h3>المساعد الصوتي البشري</h3>
+            <h3>المساعد الصوتي الذكي</h3>
             {isSpeaking && <span className="speaking-tag">🔊 يتحدث...</span>}
           </div>
           <button className="btn-close-modal" onClick={onClose}>✕</button>
