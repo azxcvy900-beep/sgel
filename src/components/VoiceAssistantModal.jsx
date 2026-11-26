@@ -13,7 +13,8 @@ export default function VoiceAssistantModal({
 }) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [lastSpeech, setLastSpeech] = useState('مرحباً بك! أنا مستمع إليك...');
+  const [typedMessage, setTypedMessage] = useState('');
+  const [lastSpeech, setLastSpeech] = useState('مرحباً بك! أنا أستمع إليك باستمرار...');
   const [showHistory, setShowHistory] = useState(false);
   const [sessionMessages, setSessionMessages] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
@@ -23,54 +24,98 @@ export default function VoiceAssistantModal({
 
   const recognitionRef = useRef(null);
   const chatBottomRef = useRef(null);
+  const shouldKeepListeningRef = useRef(true);
 
-  // Auto scroll in history
+  // Auto scroll
   useEffect(() => {
     if (showHistory) {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [sessionMessages, showHistory]);
 
-  // Speech Recognition Setup
+  // CONTINUOUS LISTENING ENGINE (Always connected like a real person)
   useEffect(() => {
+    if (!isOpen) {
+      shouldKeepListeningRef.current = false;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+      setIsListening(false);
+      return;
+    }
+
+    shouldKeepListeningRef.current = true;
+
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true; // Stay open continually
         recognition.interimResults = true;
         recognition.lang = 'ar-SA';
 
         recognition.onstart = () => setIsListening(true);
-        recognition.onend = () => setIsListening(false);
-        recognition.onerror = () => setIsListening(false);
+        recognition.onerror = (e) => {
+          console.warn("Speech recognition warning:", e);
+        };
+
+        recognition.onend = () => {
+          // If modal is still open, automatically restart listening loop!
+          if (shouldKeepListeningRef.current && isOpen) {
+            try {
+              recognition.start();
+            } catch (err) {}
+          } else {
+            setIsListening(false);
+          }
+        };
+
         recognition.onresult = (event) => {
           let currentText = '';
-          for (let i = 0; i < event.results.length; i++) {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
             currentText += event.results[i][0].transcript;
-          }
-          setTranscript(currentText);
-          if (event.results[0].isFinal) {
-            handleSendMessage(currentText);
+            if (event.results[i].isFinal) {
+              const finalText = currentText.trim();
+              if (finalText) {
+                setTranscript(finalText);
+                handleSendMessage(finalText);
+              }
+              currentText = '';
+            } else {
+              setTranscript(currentText);
+            }
           }
         };
 
         recognitionRef.current = recognition;
+
+        // Auto-start listening on modal open
+        try {
+          recognition.start();
+        } catch (e) {}
       }
     }
-  }, [companies, products, adminPin, pendingAction]);
+
+    return () => {
+      shouldKeepListeningRef.current = false;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+    };
+  }, [isOpen]);
 
   const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert('المتصفح الحالي لا يدعم الاستماع الصوتي المباشر.');
-      return;
-    }
+    if (!recognitionRef.current) return;
     if (isListening) {
+      shouldKeepListeningRef.current = false;
       recognitionRef.current.stop();
+      setIsListening(false);
     } else {
+      shouldKeepListeningRef.current = true;
       setTranscript('');
       try {
         recognitionRef.current.start();
+        setIsListening(true);
       } catch (err) {
         console.error(err);
       }
@@ -78,13 +123,13 @@ export default function VoiceAssistantModal({
   };
 
   const handleSendMessage = async (textToSend, providedPin = '') => {
-    const text = textToSend || transcript;
-    if (!text.trim()) return;
+    const text = (textToSend || transcript || typedMessage).trim();
+    if (!text) return;
 
-    // Save in session in-memory history
+    setTypedMessage('');
+    setTranscript('');
     const userMsg = { sender: 'user', text };
     setSessionMessages((prev) => [...prev, userMsg]);
-    setTranscript('');
     setLoading(true);
     setLastSpeech('جارٍ الفهم والتحليل...');
 
@@ -109,6 +154,15 @@ export default function VoiceAssistantModal({
       }
 
       if (data.action) {
+        // Voice Exit Command: "أغلق المحادثة"
+        if (data.action.type === 'CLOSE_ASSISTANT') {
+          shouldKeepListeningRef.current = false;
+          setTimeout(() => {
+            onClose();
+          }, 1500);
+          return;
+        }
+
         if (data.action.requiresPin && providedPin !== adminPin) {
           setPendingAction(data.action);
         } else {
@@ -160,12 +214,19 @@ export default function VoiceAssistantModal({
           <button
             className={`btn-history-toggle ${showHistory ? 'active' : ''}`}
             onClick={() => setShowHistory(!showHistory)}
-            title="عرض / إخفاء السجل الكتابي"
+            title="عرض / إخفاء السجل والكتابة اليدوية"
           >
-            {showHistory ? '🎙️ إخفاء السجل' : '💬 السجل الكتابي'}
+            {showHistory ? '🎙️ الوضع الصوتي النقي' : '💬 المحادثة والكتابة'}
           </button>
 
-          <button className="btn-zen-close" onClick={onClose} title="إغلاق">
+          <button
+            className="btn-zen-close"
+            onClick={() => {
+              shouldKeepListeningRef.current = false;
+              onClose();
+            }}
+            title="إغلاق المحادثة"
+          >
             ✕
           </button>
         </div>
@@ -178,26 +239,25 @@ export default function VoiceAssistantModal({
           </div>
         )}
 
-        {/* MAIN VISUAL: The Intelligent Living Orb */}
+        {/* VIEW 1: ZEN LIVING ORB (Pure Voice Mode) */}
         {!showHistory ? (
           <div className="zen-center-stage">
             <div
               className={`zen-orb-wrapper ${isListening ? 'listening' : ''} ${loading ? 'thinking' : ''}`}
               onClick={toggleListening}
-              title={isListening ? 'اضغط لإيقاف الاستماع' : 'اضغط للتحدث بصوتك'}
+              title={isListening ? 'المايك يعمل باستمرار (اضغط للإيقاف المؤقت)' : 'اضغط لبدء الاستماع'}
             >
               <div className="zen-orb-core">
-                <span className="zen-mic-icon">{isListening ? '🛑' : '🎙️'}</span>
+                <span className="zen-mic-icon">{isListening ? '🎙️' : '🛑'}</span>
               </div>
               <div className="zen-orb-ring ring-1"></div>
               <div className="zen-orb-ring ring-2"></div>
               <div className="zen-orb-ring ring-3"></div>
             </div>
 
-            {/* Dynamic Status / Spoken Output */}
             <div className="zen-captions-box">
               <p className="zen-caption-status">
-                {isListening ? 'أنا أستمع إليك الآن...' : loading ? 'جارٍ التفكير...' : 'جاهز للاستماع'}
+                {isListening ? '● متصل ومستمع لصوتك دائماً...' : 'موقوف مؤقتاً'}
               </p>
               <h2 className="zen-caption-main" style={{ whiteSpace: 'pre-line' }}>
                 {transcript ? `"${transcript}"` : lastSpeech}
@@ -205,15 +265,16 @@ export default function VoiceAssistantModal({
             </div>
           </div>
         ) : (
-          /* OPTIONAL: Slide-in Clean Minimal Chat History */
+          /* VIEW 2: DUAL HISTORY & TEXT INPUT (For typing manually too) */
           <div className="zen-history-panel">
             <div className="zen-history-header">
-              <span>سجل المحادثة الحالية (مؤقت)</span>
+              <span>المحادثة المؤقتة والكتابة اليدوية</span>
               <span className="history-count">{sessionMessages.length} رسالة</span>
             </div>
+
             <div className="zen-history-messages">
               {sessionMessages.length === 0 ? (
-                <p className="empty-history-hint">لم يتم تسجيل أي محادثة بعد، تحدث لتبدأ.</p>
+                <p className="empty-history-hint">تحدث بالصوت أو اكتب استفسارك في الأسفل مباشرة.</p>
               ) : (
                 sessionMessages.map((m, idx) => (
                   <div key={idx} className={`zen-msg-bubble ${m.sender}`}>
@@ -224,6 +285,25 @@ export default function VoiceAssistantModal({
               )}
               <div ref={chatBottomRef} />
             </div>
+
+            {/* MANUAL TEXT INPUT IN HISTORY VIEW */}
+            <form
+              className="zen-text-input-bar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage(typedMessage);
+              }}
+            >
+              <input
+                type="text"
+                placeholder="اكتب استفسارك أو طلبك هنا يدوياً..."
+                value={typedMessage}
+                onChange={(e) => setTypedMessage(e.target.value)}
+              />
+              <button type="submit" className="btn-send-text" disabled={loading || !typedMessage.trim()}>
+                إرسال
+              </button>
+            </form>
           </div>
         )}
 
@@ -250,13 +330,13 @@ export default function VoiceAssistantModal({
           </div>
         )}
 
-        {/* Bottom Quick Mic Control */}
+        {/* Bottom Quick Mic Indicator */}
         <div className="zen-bottom-controls">
           <button
             className={`btn-floating-listen ${isListening ? 'listening' : ''}`}
             onClick={toggleListening}
           >
-            {isListening ? 'إيقاف الاستماع 🛑' : 'اضغط للتحدث 🎙️'}
+            {isListening ? 'الاستماع مستمر ● (اضغط للإيقاف)' : 'تشغيل الاستماع 🎙️'}
           </button>
         </div>
 

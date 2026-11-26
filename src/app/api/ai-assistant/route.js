@@ -27,23 +27,32 @@ function processSmartQuery(message, context, pinProvided) {
   const rawMsg = (message || '').trim();
   const normMsg = normalize(rawMsg);
 
-  // 1. INQUIRY: List all companies (e.g. "ما الشركات المسجلة لدي؟" / "اعطني قائمة الشركات")
+  // 1. VOICE COMMAND: Close / Exit Conversation
+  const closeCommands = ['اغلق', 'اقفل', 'قفل', 'انهاء', 'مع السلامه', 'مع السلامة', 'خروج', 'سكر'];
+  if (closeCommands.some(w => normMsg.includes(w))) {
+    return {
+      replyText: "مع السلامة، أنا دائماً في خدمتك.",
+      action: { type: 'CLOSE_ASSISTANT' }
+    };
+  }
+
+  // 2. INQUIRY: List all companies
   if (
-    (normMsg.includes('شرك') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('اعطني') || normMsg.includes('كل') || normMsg.includes('جميع')))
+    normMsg.includes('شرك') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('اعطني') || normMsg.includes('كل') || normMsg.includes('جميع'))
   ) {
     if (companies.length === 0) {
       return { replyText: "لا توجد أي شركات مسجلة في النظام حالياً.", action: null };
     }
     const cList = companies.map((c, i) => `${i + 1}. ${c}`).join('\n');
     return {
-      replyText: `الشركات المسجلة لديك (${companies.length} شركات):\n${cList}`,
+      replyText: `الشركات المسجلة في المركز (${companies.length} شركات):\n${cList}`,
       action: null
     };
   }
 
-  // 2. INQUIRY: List all products / Inventory overview (e.g. "ما هي المنتجات المسجلة؟")
+  // 3. INQUIRY: List all products / Inventory overview
   if (
-    (normMsg.includes('منتج') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('كم') || normMsg.includes('كل')))
+    normMsg.includes('منتج') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('كم') || normMsg.includes('كل'))
   ) {
     if (products.length === 0) {
       return { replyText: "لا توجد أي منتجات مسجلة في النظام حالياً.", action: null };
@@ -55,7 +64,7 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // 3. Filter strictly out-of-scope chit chat (Cooking, politics, jokes)
+  // 4. Filter strictly out-of-scope chit chat
   const strictlyNonBusiness = ['نكتة', 'نكت', 'قصة', 'طبخ', 'اكل', 'سياسة', 'دين', 'كورة', 'شخبارك'];
   if (strictlyNonBusiness.some(w => normMsg.includes(w))) {
     return {
@@ -64,7 +73,7 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // 4. Intelligent Compound Action: ADD / UPDATE PRODUCT & PRICE
+  // 5. Intelligent Compound Action: ADD / UPDATE PRODUCT & PRICE
   const isAddOrUpdate = normMsg.includes('اضف') || normMsg.includes('سجل') || normMsg.includes('عدل') || normMsg.includes('غير') || normMsg.includes('حط');
 
   if (isAddOrUpdate) {
@@ -143,7 +152,7 @@ function processSmartQuery(message, context, pinProvided) {
     }
   }
 
-  // 5. SMART QUERY LOGIC FOR PRODUCTS & COMPANIES
+  // 6. SMART QUERY LOGIC FOR PRODUCTS & COMPANIES
   const tirePattern = extractTirePattern(rawMsg);
   const matchedCompany = companies.find(c => normMsg.includes(normalize(c)));
 
@@ -204,7 +213,7 @@ function processSmartQuery(message, context, pinProvided) {
 
   // Default intelligent assistant response
   return {
-    replyText: "تفضل بسؤالك: يمكنك الاستفسار عن الشركات المسجلة، أو أسعار أي مقاس أو منتج، أو طلب إضافة وتعديل برمز الإدارة.",
+    replyText: "تفضل بسؤالك: يمكنك الاستفسار عن الشركات أو أسعار المنتجات، أو طلب إضافة وتعديل برمز الإدارة، أو قل 'أغلق المحادثة' للخروج.",
     action: null
   };
 }
