@@ -574,6 +574,45 @@ html, body {
   color: #10b981;
 }
 
+/* Zen Notification Banner (Success / Error / Warning) */
+.zen-notification-banner {
+  position: absolute;
+  top: 75px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(12px);
+  animation: slideDown 0.3s ease;
+  z-index: 50;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+.zen-notification-banner.success {
+  background: rgba(16, 185, 129, 0.25);
+  border: 1.5px solid #10b981;
+  color: #34d399;
+}
+
+.zen-notification-banner.error {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1.5px solid #ef4444;
+  color: #f87171;
+}
+
+.zen-notification-banner.warning {
+  background: rgba(245, 158, 11, 0.25);
+  border: 1.5px solid #f59e0b;
+  color: #fbbf24;
+}
+
 /* Zen Center Stage (Orb & Speech) */
 .zen-center-stage {
   flex: 1;

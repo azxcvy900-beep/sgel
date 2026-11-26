@@ -18,13 +18,18 @@ export default function VoiceAssistantModal({
   const [showHistory, setShowHistory] = useState(false);
   const [sessionMessages, setSessionMessages] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
-  const [pinInput, setPinInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [actionSuccessBanner, setActionSuccessBanner] = useState('');
+  const [statusBanner, setStatusBanner] = useState({ type: '', text: '' });
 
   const recognitionRef = useRef(null);
   const chatBottomRef = useRef(null);
   const shouldKeepListeningRef = useRef(true);
+  const pendingActionRef = useRef(null);
+
+  // Keep ref synced
+  useEffect(() => {
+    pendingActionRef.current = pendingAction;
+  }, [pendingAction]);
 
   // Auto scroll
   useEffect(() => {
@@ -33,7 +38,7 @@ export default function VoiceAssistantModal({
     }
   }, [sessionMessages, showHistory]);
 
-  // CONTINUOUS LISTENING ENGINE (Always connected like a real person)
+  // Speech Recognition Setup (Continuous Loop)
   useEffect(() => {
     if (!isOpen) {
       shouldKeepListeningRef.current = false;
@@ -50,21 +55,16 @@ export default function VoiceAssistantModal({
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = true; // Stay open continually
+        recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = 'ar-SA';
 
         recognition.onstart = () => setIsListening(true);
-        recognition.onerror = (e) => {
-          console.warn("Speech recognition warning:", e);
-        };
+        recognition.onerror = () => {};
 
         recognition.onend = () => {
-          // If modal is still open, automatically restart listening loop!
           if (shouldKeepListeningRef.current && isOpen) {
-            try {
-              recognition.start();
-            } catch (err) {}
+            try { recognition.start(); } catch (err) {}
           } else {
             setIsListening(false);
           }
@@ -88,11 +88,7 @@ export default function VoiceAssistantModal({
         };
 
         recognitionRef.current = recognition;
-
-        // Auto-start listening on modal open
-        try {
-          recognition.start();
-        } catch (e) {}
+        try { recognition.start(); } catch (e) {}
       }
     }
 
@@ -116,19 +112,17 @@ export default function VoiceAssistantModal({
       try {
         recognitionRef.current.start();
         setIsListening(true);
-      } catch (err) {
-        console.error(err);
-      }
+      } catch (err) {}
     }
   };
 
-  const handleSendMessage = async (textToSend, providedPin = '') => {
+  const handleSendMessage = async (textToSend, manualPin = '') => {
     const text = (textToSend || transcript || typedMessage).trim();
-    if (!text) return;
+    if (!text && !manualPin) return;
 
     setTypedMessage('');
     setTranscript('');
-    const userMsg = { sender: 'user', text };
+    const userMsg = { sender: 'user', text: text || `[رمز التأكيد: ${manualPin}]` };
     setSessionMessages((prev) => [...prev, userMsg]);
     setLoading(true);
     setLastSpeech('جارٍ الفهم والتحليل...');
@@ -139,8 +133,13 @@ export default function VoiceAssistantModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          context: { companies, products, adminPin },
-          pinProvided: providedPin,
+          context: {
+            companies,
+            products,
+            adminPin,
+            pendingAction: pendingActionRef.current
+          },
+          pinProvided: manualPin,
           apiKey: clientApiKey
         })
       });
@@ -154,53 +153,46 @@ export default function VoiceAssistantModal({
       }
 
       if (data.action) {
-        // Voice Exit Command: "أغلق المحادثة"
+        // Close conversation command
         if (data.action.type === 'CLOSE_ASSISTANT') {
           shouldKeepListeningRef.current = false;
-          setTimeout(() => {
-            onClose();
-          }, 1500);
+          setTimeout(() => onClose(), 1500);
           return;
         }
 
-        if (data.action.requiresPin && providedPin !== adminPin) {
+        // Action requires PIN confirmation
+        if (data.action.requiresPin && !data.action.executeNow) {
           setPendingAction(data.action);
-        } else {
+          showBanner('warning', '🔒 مطلوب كلمة المرور (1234) لإتمام العملية');
+          return;
+        }
+
+        // Successful PIN verification & Save Execution
+        if (data.action.executeNow && data.action.pinSuccess) {
           onApplyAction(data.action);
           setPendingAction(null);
-          triggerSuccessAnimation('تم حفظ وتحديث البيانات في السحابة بنجاح!');
+          showBanner('success', '✅ تم حفظ البيانات بنجاح في قاعدة البيانات السحابية!');
+          return;
+        }
+
+        // Failed PIN
+        if (data.action.pinSuccess === false) {
+          showBanner('error', `❌ فشل الحفظ: ${data.action.errorMsg || 'كلمة المرور غير صحيحة'}`);
+          return;
         }
       }
-    } catch {
+    } catch (err) {
       setLoading(false);
       const errMsg = 'عذراً، حدث خطأ أثناء الاتصال.';
       setLastSpeech(errMsg);
       setSessionMessages((prev) => [...prev, { sender: 'ai', text: errMsg }]);
+      showBanner('error', '❌ تعذر الاتصال بالسيرفر');
     }
   };
 
-  const triggerSuccessAnimation = (text) => {
-    setActionSuccessBanner(text);
-    setTimeout(() => setActionSuccessBanner(''), 4000);
-  };
-
-  const handleConfirmPin = (e) => {
-    e.preventDefault();
-    if (pinInput === adminPin) {
-      if (pendingAction) {
-        onApplyAction(pendingAction);
-        const successText = '✅ تم تأكيد الرمز 1234 وحفظ البيانات في السحابة بنجاح!';
-        setLastSpeech(successText);
-        setSessionMessages((prev) => [...prev, { sender: 'ai', text: successText }]);
-        triggerSuccessAnimation('تم التحديث والمزامنة في Firebase فوراً!');
-        setPendingAction(null);
-        setPinInput('');
-      }
-    } else {
-      const failText = '❌ رمز التأكيد غير صحيح!';
-      setLastSpeech(failText);
-      setPinInput('');
-    }
+  const showBanner = (type, text) => {
+    setStatusBanner({ type, text });
+    setTimeout(() => setStatusBanner({ type: '', text: '' }), 4500);
   };
 
   if (!isOpen) return null;
@@ -216,7 +208,7 @@ export default function VoiceAssistantModal({
             onClick={() => setShowHistory(!showHistory)}
             title="عرض / إخفاء السجل والكتابة اليدوية"
           >
-            {showHistory ? '🎙️ الوضع الصوتي النقي' : '💬 المحادثة والكتابة'}
+            {showHistory ? '🎙️ الوضع الصوتي' : '💬 المحادثة والكتابة'}
           </button>
 
           <button
@@ -231,21 +223,20 @@ export default function VoiceAssistantModal({
           </button>
         </div>
 
-        {/* Persistent Success Banner for Cloud Saves */}
-        {actionSuccessBanner && (
-          <div className="zen-success-pill">
-            <span className="pill-dot">●</span>
-            <span>{actionSuccessBanner}</span>
+        {/* Dynamic Status / Success / Error Banner */}
+        {statusBanner.text && (
+          <div className={`zen-notification-banner ${statusBanner.type}`}>
+            <span>{statusBanner.text}</span>
           </div>
         )}
 
-        {/* VIEW 1: ZEN LIVING ORB (Pure Voice Mode) */}
+        {/* VIEW 1: LIVING ORB (Pure Voice Mode) */}
         {!showHistory ? (
           <div className="zen-center-stage">
             <div
               className={`zen-orb-wrapper ${isListening ? 'listening' : ''} ${loading ? 'thinking' : ''}`}
               onClick={toggleListening}
-              title={isListening ? 'المايك يعمل باستمرار (اضغط للإيقاف المؤقت)' : 'اضغط لبدء الاستماع'}
+              title={isListening ? 'المايك يستمع لصوتك باستمرار' : 'اضغط لبدء الاستماع'}
             >
               <div className="zen-orb-core">
                 <span className="zen-mic-icon">{isListening ? '🎙️' : '🛑'}</span>
@@ -257,7 +248,11 @@ export default function VoiceAssistantModal({
 
             <div className="zen-captions-box">
               <p className="zen-caption-status">
-                {isListening ? '● متصل ومستمع لصوتك دائماً...' : 'موقوف مؤقتاً'}
+                {pendingAction
+                  ? '🔒 بانتظار كلمة المرور بالصوت أو الكتابة...'
+                  : isListening
+                  ? '● متصل ومستمع لصوتك دائماً...'
+                  : 'موقوف مؤقتاً'}
               </p>
               <h2 className="zen-caption-main" style={{ whiteSpace: 'pre-line' }}>
                 {transcript ? `"${transcript}"` : lastSpeech}
@@ -265,7 +260,7 @@ export default function VoiceAssistantModal({
             </div>
           </div>
         ) : (
-          /* VIEW 2: DUAL HISTORY & TEXT INPUT (For typing manually too) */
+          /* VIEW 2: DUAL HISTORY & MANUAL TEXT INPUT */
           <div className="zen-history-panel">
             <div className="zen-history-header">
               <span>المحادثة المؤقتة والكتابة اليدوية</span>
@@ -286,7 +281,6 @@ export default function VoiceAssistantModal({
               <div ref={chatBottomRef} />
             </div>
 
-            {/* MANUAL TEXT INPUT IN HISTORY VIEW */}
             <form
               className="zen-text-input-bar"
               onSubmit={(e) => {
@@ -296,7 +290,7 @@ export default function VoiceAssistantModal({
             >
               <input
                 type="text"
-                placeholder="اكتب استفسارك أو طلبك هنا يدوياً..."
+                placeholder={pendingAction ? "اكتب كلمة المرور هنا أو انطقها..." : "اكتب استفسارك أو طلبك هنا..."}
                 value={typedMessage}
                 onChange={(e) => setTypedMessage(e.target.value)}
               />
@@ -307,36 +301,13 @@ export default function VoiceAssistantModal({
           </div>
         )}
 
-        {/* PIN Authorization Drawer (Only opens when adding/updating price or company) */}
-        {pendingAction && (
-          <div className="zen-pin-bar">
-            <div className="zen-pin-inner">
-              <div className="pin-hint-text">
-                <span className="lock-icon">🔒</span>
-                <span>تأكيد العملية برمز الإدارة (1234):</span>
-              </div>
-              <form onSubmit={handleConfirmPin} className="pin-input-row">
-                <input
-                  type="password"
-                  placeholder="أدخل الرمز..."
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  autoFocus
-                  maxLength={8}
-                />
-                <button type="submit" className="btn-confirm-action">تأكيد وحفظ</button>
-              </form>
-            </div>
-          </div>
-        )}
-
         {/* Bottom Quick Mic Indicator */}
         <div className="zen-bottom-controls">
           <button
             className={`btn-floating-listen ${isListening ? 'listening' : ''}`}
             onClick={toggleListening}
           >
-            {isListening ? 'الاستماع مستمر ● (اضغط للإيقاف)' : 'تشغيل الاستماع 🎙️'}
+            {isListening ? 'الاستماع مستمر ● (تكلم في أي وقت)' : 'تشغيل الاستماع 🎙️'}
           </button>
         </div>
 

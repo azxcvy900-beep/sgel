@@ -20,14 +20,69 @@ function extractTirePattern(str) {
   return null;
 }
 
+// Convert spoken Arabic numbers to digits (e.g. "واحد اثنين ثلاثة اربعة" -> "1234")
+function parseSpokenPin(text) {
+  if (!text) return '';
+  let clean = text.trim();
+  // If already contains 4 digits together
+  const directDigits = clean.match(/\b\d{4,8}\b/);
+  if (directDigits) return directDigits[0];
+
+  // Map Arabic word digits
+  const wordMap = {
+    'صفر': '0', 'واحد': '1', 'اثنين': '2', 'ثنين': '2', 'ثلاثة': '3', 'تلاتة': '3', 'ثلاثه': '3',
+    'اربعة': '4', 'اربعه': '4', 'خمسة': '5', 'خمسه': '5', 'ستة': '6', 'سته': '6',
+    'سبعة': '7', 'سبعه': '7', 'ثمانية': '8', 'ثمانيه': '8', 'تسعة': '9', 'تسعه': '9'
+  };
+
+  let result = '';
+  const tokens = clean.split(/[\s,،\-]+/);
+  for (const t of tokens) {
+    const norm = normalize(t);
+    if (wordMap[norm]) {
+      result += wordMap[norm];
+    } else if (/^\d+$/.test(t)) {
+      result += t;
+    }
+  }
+
+  return result;
+}
+
 function processSmartQuery(message, context, pinProvided) {
   const products = context?.products || [];
   const companies = context?.companies || [];
   const adminPin = context?.adminPin || '1234';
+  const pendingActionFromClient = context?.pendingAction || null;
   const rawMsg = (message || '').trim();
   const normMsg = normalize(rawMsg);
 
-  // 1. VOICE COMMAND: Close / Exit Conversation
+  // 1. PIN VERIFICATION VIA VOICE:
+  // If user is answering with a PIN (either digits or spoken words like "واحد اثنين ثلاثة اربعة" or "1234")
+  const extractedPin = parseSpokenPin(rawMsg);
+  if (pendingActionFromClient && (extractedPin || pinProvided)) {
+    const finalPin = extractedPin || pinProvided;
+    if (finalPin === adminPin) {
+      return {
+        replyText: "عُلِم! تم تأكيد كلمة المرور وحفظ البيانات بنجاح في قاعدة البيانات السحابية.",
+        action: {
+          ...pendingActionFromClient,
+          executeNow: true,
+          pinSuccess: true
+        }
+      };
+    } else {
+      return {
+        replyText: "عذراً، كلمة المرور غير صحيحة. لم يتم الحفظ في قاعدة البيانات.",
+        action: {
+          pinSuccess: false,
+          errorMsg: "رمز التأكيد غير صحيح"
+        }
+      };
+    }
+  }
+
+  // 2. VOICE COMMAND: Close / Exit Conversation
   const closeCommands = ['اغلق', 'اقفل', 'قفل', 'انهاء', 'مع السلامه', 'مع السلامة', 'خروج', 'سكر'];
   if (closeCommands.some(w => normMsg.includes(w))) {
     return {
@@ -36,7 +91,7 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // 2. INQUIRY: List all companies
+  // 3. INQUIRY: List all companies
   if (
     normMsg.includes('شرك') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('اعطني') || normMsg.includes('كل') || normMsg.includes('جميع'))
   ) {
@@ -50,7 +105,7 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // 3. INQUIRY: List all products / Inventory overview
+  // 4. INQUIRY: List all products / Inventory overview
   if (
     normMsg.includes('منتج') && (normMsg.includes('مسجل') || normMsg.includes('ما هي') || normMsg.includes('ماهي') || normMsg.includes('قائم') || normMsg.includes('عندي') || normMsg.includes('لدي') || normMsg.includes('كم') || normMsg.includes('كل'))
   ) {
@@ -60,15 +115,6 @@ function processSmartQuery(message, context, pinProvided) {
     const pSample = products.slice(0, 8).map(p => `• ${p.name} (${p.code || ''})`).join('\n');
     return {
       replyText: `لديك ${products.length} منتج مسجل في النظام. عينة منها:\n${pSample}${products.length > 8 ? `\n...و ${products.length - 8} منتجات أخرى.` : ''}`,
-      action: null
-    };
-  }
-
-  // 4. Filter strictly out-of-scope chit chat
-  const strictlyNonBusiness = ['نكتة', 'نكت', 'قصة', 'طبخ', 'اكل', 'سياسة', 'دين', 'كورة', 'شخبارك'];
-  if (strictlyNonBusiness.some(w => normMsg.includes(w))) {
-    return {
-      replyText: "عذراً، أنا مخصص فقط لإدارة وتسعير منتجات وشركات المركز.",
       action: null
     };
   }
@@ -109,44 +155,30 @@ function processSmartQuery(message, context, pinProvided) {
       const finalComp = companyName || companies[0] || 'الشركة العامة';
       const finalPrice = price || 0;
 
-      if (pinProvided !== adminPin) {
-        return {
-          replyText: `لتأكيد إضافة "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال، يرجى إدخال رمز الإدارة 1234.`,
-          action: {
-            type: 'ADD_PRODUCT',
-            productName: prodName,
-            company: finalComp,
-            price: finalPrice,
-            requiresPin: true
-          }
-        };
-      } else {
-        return {
-          replyText: `تم بنجاح تسجيل "${prodName}" لشركة "${finalComp}" بسعر ${finalPrice} ريال وتحديث النظام سحابياً.`,
-          action: {
-            type: 'ADD_PRODUCT',
-            productName: prodName,
-            company: finalComp,
-            price: finalPrice,
-            requiresPin: false
-          }
-        };
-      }
+      // Ask for Voice Password:
+      return {
+        replyText: `عُلِم! يرجى إعطائي كلمة المرور لتأكيد إضافة "${prodName}" لـ "${finalComp}" بسعر ${finalPrice} ريال.`,
+        action: {
+          type: 'ADD_PRODUCT',
+          productName: prodName,
+          company: finalComp,
+          price: finalPrice,
+          requiresPin: true
+        }
+      };
     }
 
     // Company only addition
     if (normMsg.includes('شرك') && !prodName) {
       const cMatch = rawMsg.replace(/اضف|أضف|سجل|شركه|شركة|جديده|جديدة/gi, '').trim();
       if (cMatch) {
-        if (pinProvided !== adminPin) {
-          return {
-            replyText: `لإضافة شركة "${cMatch}"، يرجى تأكيد العملية برمز الإدارة 1234.`,
-            action: { type: 'ADD_COMPANY', company: cMatch, requiresPin: true }
-          };
-        }
         return {
-          replyText: `تمت إضافة شركة "${cMatch}" بنجاح إلى النظام.`,
-          action: { type: 'ADD_COMPANY', company: cMatch, requiresPin: false }
+          replyText: `عُلِم! يرجى إعطائي كلمة المرور لتأكيد إضافة شركة "${cMatch}".`,
+          action: {
+            type: 'ADD_COMPANY',
+            company: cMatch,
+            requiresPin: true
+          }
         };
       }
     }
@@ -211,9 +243,8 @@ function processSmartQuery(message, context, pinProvided) {
     };
   }
 
-  // Default intelligent assistant response
   return {
-    replyText: "تفضل بسؤالك: يمكنك الاستفسار عن الشركات أو أسعار المنتجات، أو طلب إضافة وتعديل برمز الإدارة، أو قل 'أغلق المحادثة' للخروج.",
+    replyText: "تفضل بسؤالك: يمكنك طلب أسعار أي منتج، أو أمر إضافة مع ذكر السعر والشركة.",
     action: null
   };
 }
