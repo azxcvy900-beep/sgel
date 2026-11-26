@@ -62,7 +62,7 @@ export default function VoiceAssistantModal({
     }
   }, [companies, products, adminPin, pendingAction]);
 
-  // Human-like Natural Voice Synthesis (100% Studio Stream, NO browser robot voice)
+  // Human-like Natural Voice Synthesis (Instant Studio Sound, No Browser Synth)
   const speakNatural = async (text) => {
     try {
       if (audioPlayerRef.current) {
@@ -82,7 +82,7 @@ export default function VoiceAssistantModal({
         const data = await res.json();
         if (data.audioBase64) {
           const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-          audio.playbackRate = 1.2; // Natural dynamic speech cadence
+          audio.playbackRate = 1.25; // Lively human conversational speed
           audioPlayerRef.current = audio;
           audio.onended = () => setIsSpeaking(false);
           audio.onerror = () => setIsSpeaking(false);
